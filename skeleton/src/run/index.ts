@@ -124,6 +124,8 @@ export interface RunOptions {
   onAttempt?(attempt: Attempt): void;
   /** Called after a fall, when play restarts at this level time. Cancel scheduled sound here. */
   onRestart?(levelTime: number): void;
+  /** The coach's lead before each countdown, in real ms. 0 or missing: no coach. */
+  coachLeadMs?: number;
   /**
    * Teach from a mistake: return a short plain sentence for a wrong press or a
    * missed target, or nothing. It is spoken and shown after the reason.
@@ -186,6 +188,36 @@ interface Plan {
   clearAt: number;
 }
 
+export interface CoachLine {
+  index: number;
+  /** When the coach starts speaking, in running seconds. */
+  at: number;
+  /** The lead the player asked for, and the lead that fitted, in real ms. */
+  askedMs: number;
+  gotMs: number;
+}
+
+/**
+ * When the coach speaks before each countdown, for a lead in real ms at a speed (Requirement 21). A
+ * line never starts before the player has landed from an on-time jump over the obstacle before, plus
+ * the landing margin; where the asked-for lead does not fit, the longest that does is used. A line
+ * with less than a quarter of a second before the first beep is left out.
+ */
+export function coachTimes(level: Level, timing: Timing, speed: Speed, leadMs: number): CoachLine[] {
+  if (leadMs <= 0) return [];
+  const rate = timing.rates[speed];
+  const out: CoachLine[] = [];
+  level.obstacles.forEach((o, i) => {
+    const cue1 = cueTimes(o, timing)[0];
+    const prev = level.obstacles[i - 1];
+    const earliest = prev ? idealPress(prev, timing) + timing.airtime + timing.landingMargin : 0;
+    const at = Math.max(cue1 - (leadMs / 1000) * rate, earliest);
+    const gotMs = ((cue1 - at) / rate) * 1000;
+    if (gotMs >= 250) out.push({ index: i, at, askedMs: leadMs, gotMs });
+  });
+  return out;
+}
+
 export function createRun(options: RunOptions): Run {
   const { level, timing, speed, events } = options;
   const settings = resolveRunSettings(options.settings);
@@ -234,6 +266,9 @@ export function createRun(options: RunOptions): Run {
   let heldFor = -1;
   /** Real ms before which level time stands still (see `holdUntil`). */
   let heldUntil = Number.NEGATIVE_INFINITY;
+  // The coach: a heads-up before each countdown, said again after a retry.
+  const coach = new Map(coachTimes(level, timing, speed, options.coachLeadMs ?? 0).map((c) => [c.index, c]));
+  const coachSaid = new Set<number>();
 
   const attempt = (result: Attempt['result'], pressedAt: number | null): void => {
     const plan = plans[i]!;
@@ -296,6 +331,7 @@ export function createRun(options: RunOptions): Run {
     landedSent = true; // nothing is in the air after a restart
     cursor = firstEventFrom(t);
     heldFor = -1;
+    coachSaid.delete(i);
     phase = 'play';
     options.onRestart?.(t);
   };
@@ -308,6 +344,25 @@ export function createRun(options: RunOptions): Run {
     if (phase === 'play' && !landedSent && lastJumpAt !== null && t >= lastJumpAt + timing.airtime) {
       landedSent = true;
       options.emit({ type: EVENT_TYPES.landed, at: lastJumpAt + timing.airtime }, t);
+    }
+    const line = coach.get(i);
+    if (phase === 'play' && line && !coachSaid.has(i) && t + settings.lookahead >= line.at) {
+      coachSaid.add(i);
+      const o = level.obstacles[i]!;
+      options.emit(
+        {
+          type: EVENT_TYPES.coach,
+          at: Math.max(t, line.at),
+          data: {
+            object: o.kind,
+            index: i,
+            move: o.move ?? 'jump',
+            ...(o.value !== undefined ? { value: o.value } : {}),
+            ...(o.gate ? { here: o.gate.here } : {}),
+          },
+        },
+        t,
+      );
     }
     // Timing help: a press held from earlier in the countdown is made now, on the fourth beat.
     if (phase === 'play' && heldFor === i && i < plans.length && jumpedAt === null && t >= plans[i]!.j) {

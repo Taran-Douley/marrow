@@ -28,6 +28,8 @@ export function defaultProfile(): Profile {
     scanning: true,
     holdToConfirm: false,
     setupDone: false,
+    coachLeadMs: 0,
+    announce: 'normal',
   };
 }
 
@@ -104,6 +106,8 @@ export function parseProfile(input: unknown): Profile {
     scanning: pickBool(raw.scanning, base.scanning),
     holdToConfirm: pickBool(raw.holdToConfirm, base.holdToConfirm),
     setupDone: pickBool(raw.setupDone, base.setupDone),
+    coachLeadMs: pickNumber(raw.coachLeadMs, [0, 3000], base.coachLeadMs),
+    announce: pickEnum(raw.announce, ['minimal', 'normal', 'detailed'] as const, base.announce),
   };
 }
 

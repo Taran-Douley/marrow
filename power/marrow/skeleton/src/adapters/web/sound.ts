@@ -80,6 +80,8 @@ export interface SoundOptions {
   masterGain?: number;
   /** Length of a cue beep in seconds. Default 0.16. */
   cueSeconds?: number;
+  /** Most sounds at once, for busy games (Requirement 25.4). The least important give way first; a countdown beep never does. Default 24. */
+  maxVoices?: number;
 }
 
 export interface SoundPlayer {
@@ -92,7 +94,12 @@ export interface SoundPlayer {
   cancelAll(): void;
   /** Browsers start audio only after a gesture: call this from a press. */
   unlock(): void;
+  /** How many sounds were left out or cut short to keep under the limit. */
+  dropped(): number;
 }
+
+/** Which sounds give way first when too many play at once. A cue is never dropped. */
+const RANK: Partial<Record<string, number>> = { ambience: 0, music: 1, effect: 2, approach: 3, reward: 4, cue: 9 };
 
 interface Stoppable {
   stop(when?: number): void;
@@ -105,6 +112,10 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
   const master = options.masterGain ?? 0.35;
   const cueSeconds = options.cueSeconds ?? 0.16;
   let live: Stoppable[] = [];
+  const maxVoices = Math.max(4, options.maxVoices ?? 24);
+  let sounding: { role: string; end: number; nodes: Stoppable[] }[] = [];
+  let fresh: Stoppable[] = [];
+  let dropped = 0;
   let noise: { getChannelData(channel: number): Float32Array } | undefined;
 
   const noiseBuffer = () => {
@@ -143,6 +154,7 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
 
   const track = (node: Stoppable): void => {
     live.push(node);
+    fresh.push(node);
     if (live.length > 96) live = live.slice(-48); // finished sounds fall away
   };
 
@@ -251,6 +263,28 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
   return {
     play(cmd, delaySeconds, mono, rate = 1) {
       const start = ctx.currentTime + Math.max(0, delaySeconds);
+      // A busy game: at most `maxVoices` sounds at once. The least important gives way; a beep never does.
+      sounding = sounding.filter((v) => v.end > start);
+      if (sounding.length >= maxVoices) {
+        const rank = RANK[cmd.role] ?? 0;
+        const weakest = sounding.filter((v) => v.role !== 'cue').sort((a, b) => (RANK[a.role] ?? 0) - (RANK[b.role] ?? 0))[0];
+        if (cmd.role !== 'cue' && (!weakest || (RANK[weakest.role] ?? 0) >= rank)) {
+          dropped += 1;
+          return; // nothing less important to make room: this one is left out
+        }
+        if (weakest) {
+          for (const node of weakest.nodes) {
+            try {
+              node.stop(start);
+            } catch {
+              // already stopped
+            }
+          }
+          sounding = sounding.filter((v) => v !== weakest);
+          dropped += 1;
+        }
+      }
+      fresh = [];
       const shape = cmd.shape ?? {};
       const seconds =
         shape.span !== undefined ? shape.span / Math.max(rate, 0.01) : shape.seconds ?? (cmd.role === 'reward' ? 0.14 : cueSeconds);
@@ -262,6 +296,7 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
       } else {
         voice(cmd, cmd.hz, cmd.wave, cmd.gain, start, seconds, cmd.pan, mono);
       }
+      sounding.push({ role: cmd.role, end: start + (cmd.role === 'reward' ? 0.34 : seconds), nodes: fresh });
     },
     cancelAll() {
       for (const node of live) {
@@ -272,7 +307,9 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
         }
       }
       live = [];
+      sounding = [];
     },
+    dropped: () => dropped,
     unlock() {
       if (ctx.state === 'suspended') void ctx.resume?.();
     },

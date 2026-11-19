@@ -323,3 +323,25 @@ Kiro played both games headless: a perfect and a noisy one-switch persona in Gha
 | Séance: about 10 s standing at every stop | Phantom said only when it is news; known rooms give only their name; free hint after two catches | 6.5 s per stop; a house takes 2.8 min instead of 3.8 |
 
 Tests added for every fix, including one that fails if the hold music is turned off. Spec: Requirements 29 to 31 and tasks 22a to 22c. Steering `tech.md` covers songs, holds, the speech queue and walks.
+
+## One switch does everything; the rest of the spec
+
+- **Git and GitHub.** Public repo [Taran-Douley/marrow](https://github.com/Taran-Douley/marrow) with the MIT licence detected, `.kiro/` included, LF line endings. Work goes on feature branches with pull requests.
+- **Menus (task 14).** `skeleton/src/menu`: `createMenu` and `createMenuStack`. Entries are lit and said in turn, and a press chooses. A setting moves to its next value and stays lit, so you hear the new value. Sub-menus start with Back. All player settings are available, and so is the five-way first-run setup ("Just play", "Play by sound", "Play by sight", "More time", "More settings"). Both games can now be driven start to finish with one switch, settings included; the page's form stays for mouse and keyboard users. `drawMenu` draws it.
+- **Proofs 7, 9, 10, 11, 12 (tasks 12, 13).** No unsafe flashing (and none with reduced motion), contrast in every theme and palette, no hold or chord, every spoken line is in the line script, repairs never change the level. `kit.provePresentation()` runs them. Every stage and boss passes.
+- **The coach (task 15a).** A heads-up before each countdown ("Stone coming. Get ready to decide."), 1 to 3 s early. It is off until the player picks a lead, never gives a lesson's answer, and property 17 proves it starts after the landing and before the beeps. Leads that do not fit are shortened and reported.
+- **Scale pack (task 16d).** Event priorities and an announce level (minimal, normal, detailed). Critical lines cut in, and a line already waiting is said only once. The sound player has a voice limit that never drops a beep. There is a `nearest` helper. Property 18 checks that speech stays slow enough to follow.
+- **For developers.** `npm run new-game -- ../my-game` makes Bat Dash, a complete accessible game in one file. Built and audited: 14 of 14. `docs/quickstart.md` is tested line by line in `skeleton/test/quickstart.test.ts`. New docs: `architecture.md`, `proof-report.md`, and proof reports for both games written by tests (Ghastly 2,800 of 2,800 levels; Séance 600 of 600 houses). README rewritten.
+- Tests: skeleton 480, Ghastly Moves 67, Séance Escape 58, Level Forge 39. Both apps score 14 of 14 on the audit.
+
+## Plug and play (task 22d)
+
+The flow is now: clone, then `npm run setup`, and both games open. Then ask Kiro to add an object, and a hook wires it in and runs the proof.
+
+- **`npm run setup`** (`scripts/setup.mjs`, Node built-ins only). It checks for Node 20.19 or later, installs, checks the games use only the public API, builds both games, starts them on free local ports, opens them, and prints the next step. Every failure says what to do. `--no-start` runs in CI.
+- **`createGame`** (`@marrow/skeleton/web`). One call gives a whole game: the page, the first-run setup, the one-switch menu and settings, every channel, a level proved before it is served, and a spoken and shown refusal when it is not. `examples/hello/src/main.ts` is 4 lines. Its test plays it with one key and breaks it with a crypt 1 s wide.
+- **The catalogue** (`@marrow/skeleton/catalogue`). It has 14 ready-made objects from both games, each with sound, speech, caption and vibration. `preset()` needs only a name (and a width for an obstacle). `useObject()` puts an object in a kit, with any part changed. `docs/catalogue.md` is made from the catalogue by a test, and a Ghastly Moves test checks the catalogue matches the game.
+- **The object hook** (`.kiro/hooks/wire-new-object.json`, on file create and save). It runs `scripts/wire-objects.mjs --prove`, which writes the game's object list, its proof test and `docs/objects-<game>.md`. It proves each object alone, then every stage and boss with the object in, then rewrites the reports. Tried with a crypt: 0.2 to 0.3 s wide passed. 1 s wide failed with "Level 1, obstacle 1 (crypt, 1.00 s wide): no take-off point clears it. One jump covers only 0.73 s." The crypt was then removed, so no gameplay changed.
+- **Public API check** (`scripts/check-imports.mjs`). It runs in CI, in `npm test` (Level Forge) and in setup. It names the file and line of any import that reaches inside the kit.
+- README rewritten, top first: the pitch, 3 quickstart commands, the example, what you get for free, then the Kiro power as the second route.
+- Not tested here: setup actually starting the two dev servers and opening a browser. The person running the project does that.

@@ -23,6 +23,8 @@ import { createProfileStore, type ProfileStore, type StorageLike } from './stora
 import { createVisual, drawCaptionBox, type Rect, type Visual, type WebStyle } from './visual';
 
 export { createSoundPlayer } from './sound';
+export { createGame } from './game';
+export type { Game, GameOptions } from './game';
 export { fingerprint, registerOffline, serviceWorkerSource } from './offline';
 export type { ServiceWorkerOptions } from './offline';
 export { chooseVoice, clipsBySlug, createSpeaker, regionFromElement, slugOf } from './speech';
@@ -30,7 +32,7 @@ export type { BrowserVoiceOptions, ClipHandle, Clips, PlayClip, SayHow, SpeakerO
 export { createProfileStore } from './storage';
 export { bindInput, createGamepadPoller, isControl } from './input';
 export { createHaptics } from './haptics';
-export { createVisual, drawCaptionBox, DEFAULT_FONT } from './visual';
+export { createVisual, drawCaptionBox, drawMenu, DEFAULT_FONT } from './visual';
 export type { AudioContextLike, SoundOptions } from './sound';
 export type { RegionLike, SynthLike } from './speech';
 export type { StorageLike } from './storage';

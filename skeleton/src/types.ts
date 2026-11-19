@@ -86,6 +86,16 @@ export interface SpeechTone {
  */
 export type SpeechMode = 'wait' | 'cut-in' | 'latest';
 
+/** How much a player wants announced. */
+export type AnnounceLevel = 'minimal' | 'normal' | 'detailed';
+
+/**
+ * How much an event matters, for busy games (Requirement 25): critical is never dropped and cuts in;
+ * important is kept at every announce level; information is dropped at minimal; ambient is said only
+ * at detailed. Sounds are never dropped by this: it governs words.
+ */
+export type Priority = 'critical' | 'important' | 'information' | 'ambient';
+
 /** What a channel wants the player to perceive. An adapter performs it. */
 export type OutputCommand =
   | {
@@ -147,6 +157,13 @@ export interface Profile {
   scanning: boolean;
   holdToConfirm: boolean;
   setupDone: boolean;
+  /**
+   * The coach: a short spoken heads-up this many real ms before each countdown ('Stone coming. Get
+   * ready.'). 0 is off. Only games that turn the coach on in their kit use it.
+   */
+  coachLeadMs: number;
+  /** How much is announced: minimal (only what you need now), normal, or detailed (every little thing). */
+  announce: AnnounceLevel;
 }
 
 export type ProfilePatch = Partial<Omit<Profile, 'volume' | 'channels'>> & {
@@ -170,6 +187,8 @@ export interface EventPresentation {
   speech?: SpeechMode;
   /** Say the line in a character's voice: `{ pitch: 1.3 }` for a small ghost. */
   voice?: SpeechTone;
+  /** How much it matters. Default 'important'. Words below the player's announce level are not said or captioned. */
+  priority?: Priority;
   caption?: string;
   /**
    * A sound recipe. `role` defaults to a cue; `shape` can glide, filter, use

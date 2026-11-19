@@ -1,0 +1,21 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Wire a new object and prove it",
+      "description": "When an object file is created in apps/<game>/src/objects/, put it in the game's registry, its tests and its docs, then run the proof. A failing object gets a plain-English reason and the game refuses its levels until it is fixed.",
+      "trigger": "PostFileCreate",
+      "matcher": "apps[/\\\\][^/\\\\]+[/\\\\]src[/\\\\]objects[/\\\\](?!index)[^/\\\\]+\\.ts$",
+      "action": { "type": "command", "command": "node scripts/wire-objects.mjs --prove" },
+      "timeout": 300
+    },
+    {
+      "name": "Prove a changed object",
+      "description": "When an object file is saved, wire it again and run the proof, so a change of width or sound is checked at once.",
+      "trigger": "PostFileSave",
+      "matcher": "apps[/\\\\][^/\\\\]+[/\\\\]src[/\\\\]objects[/\\\\](?!index)[^/\\\\]+\\.ts$",
+      "action": { "type": "command", "command": "node scripts/wire-objects.mjs --prove" },
+      "timeout": 300
+    }
+  ]
+}

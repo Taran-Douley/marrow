@@ -1,3 +1,4 @@
+import { OBJECTS } from '../src/objects/index.generated';
 import { describe, expect, it } from 'vitest';
 import { cuesAudible, trackClearOfCues, validateTrack } from '@marrow/skeleton';
 import { createGhastlyKit } from '../src/kit';
@@ -260,8 +261,8 @@ describe('songs, portals and number gates', () => {
     for (const s of STAGES) {
       const level = createGhastlyKit(s).generate(5);
       for (const o of level.obstacles) {
-        const want = o.move === 'flip' ? 'spike' : o.move === 'switch' ? 'gate' : 'stone';
-        expect(o.kind, s.name).toBe(want);
+        const want = o.move === 'flip' ? ['spike'] : o.move === 'switch' ? ['gate'] : ['stone', ...OBJECTS.map((x) => x.name)];
+        expect(want, s.name).toContain(o.kind);
       }
     }
   });
@@ -274,5 +275,37 @@ describe('songs, portals and number gates', () => {
     expect(approach.data).not.toHaveProperty('solid');
     const speech = kit.render(approach).find((c) => c.channel === 'speech');
     expect(speech).toMatchObject({ text: `${gate.gate!.here} or ${gate.value}?` });
+  });
+});
+
+describe('how the game is presented', () => {
+  it('every stage and boss passes properties 7 to 11: flashing, two senses, contrast, no hold, every line in the script', () => {
+    for (const s of STAGES) {
+      for (const boss of [false, true]) {
+        const kit = createGhastlyKit(s, { boss });
+        const failing = kit.provePresentation(kit.generate(2, { count: boss ? s.boss.count : s.count })).filter((r) => !r.pass);
+        expect(failing.map((r) => r.counterexample), `${s.name} boss=${boss}`).toEqual([]);
+      }
+    }
+  });
+});
+
+describe('the catalogue matches the game', () => {
+  it('every object the game defines is in the catalogue, with the same sound, words, caption and buzz', async () => {
+    const { CATALOGUE } = await import('@marrow/skeleton/catalogue');
+    for (const s of STAGES) {
+      for (const boss of [false, true]) {
+        const kit = createGhastlyKit(s, { boss });
+        for (const name of kit.registry.names()) {
+          if (OBJECTS.some((o) => o.name === name)) continue;
+          const def = kit.registry.get(name)!;
+          const p = CATALOGUE.find((c) => c.name === name);
+          expect(p, name).toBeDefined();
+          expect({ width: def.width, say: def.say, caption: def.caption }, name).toEqual({ width: p!.width, say: p!.say, caption: p!.caption });
+          // A sound the kit picked from its voice table depends on what else the stage defines; a chosen one never does.
+          if (!def.autoSound || s.id >= 4) expect({ sound: def.sound, haptic: def.haptic }, `${name} in ${s.name}`).toEqual({ sound: p!.sound, haptic: p!.haptic });
+        }
+      }
+    }
   });
 });

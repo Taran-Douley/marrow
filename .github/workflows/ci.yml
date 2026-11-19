@@ -18,5 +18,10 @@ jobs:
       - run: npm run build --workspace mcp/level-forge
       - run: npm test
       - run: node scripts/check-claims.mjs
-      # The power is rebuilt by the tests; fail if the committed copy is out of date.
-      - run: git diff --exit-code -- power/marrow
+      # Games use only the kit's public API, and every object file is wired in.
+      - run: node scripts/check-imports.mjs
+      - run: node scripts/wire-objects.mjs && git diff --exit-code -- apps/*/src/objects apps/*/test/objects.generated.test.ts
+      - run: node scripts/setup.mjs --no-start
+      # The power is rebuilt by the tests; fail if the committed copy is out of date. The bundled MCP
+      # server is left out: the bundler orders modules differently on Linux and Windows, same code.
+      - run: git diff --exit-code -- power/marrow ':!power/marrow/mcp/level-forge.js'

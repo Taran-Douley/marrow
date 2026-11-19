@@ -26,6 +26,8 @@ export const EVENT_TYPES = {
   fallReason: 'fall-reason',
   /** A portal: from here a press does a different move. data: { move: 'jump' | 'flip' | 'switch' } */
   portal: 'portal',
+  /** The coach's heads-up before a countdown. data: { object, move, value?, here? } */
+  coach: 'coach',
 } as const;
 
 export type FallReason = 'early' | 'late' | 'none' | 'wrong';

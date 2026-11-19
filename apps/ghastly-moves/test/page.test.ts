@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createGhastlyKit } from '../src/kit';
-import { speechMs } from '@marrow/skeleton';
+import { defaultProfile, speechMs } from '@marrow/skeleton';
 import { STAGES, needed } from '../src/stages';
 
 // Loads the real page and main.ts in a simulated browser, with fakes for the
@@ -70,6 +70,8 @@ async function boot(
   document.body.innerHTML = /<body>([\s\S]*)<\/body>/.exec(PAGE)![1]!.replace(/<script[\s\S]*?<\/script>/g, '');
   window.history.replaceState({}, '', `/${search}`);
   localStorage.clear();
+  // Most tests drive play directly (a press starts). The menu tests pass a profile with scanning on.
+  if (!('marrow.profile' in stored)) localStorage.setItem('marrow.profile', JSON.stringify({ ...defaultProfile(), scanning: false, setupDone: true }));
   for (const [k, v] of Object.entries(stored)) localStorage.setItem(k, v);
 
   const clock = { ms: 1000 };
@@ -494,6 +496,42 @@ describe('the story', () => {
     const during = page.contexts[0]!.tones.slice(before);
     // Stage 1 is in the key of 110 Hz: its bass (55 Hz) keeps going.
     expect(during.some((hz) => Math.abs(hz - 55) < 0.5)).toBe(true);
+  });
+
+  it('one switch does everything: setup the first time, settings, then play', async () => {
+    const page = await boot('?level=1', [], { 'ghastly.stage': '', 'marrow.profile': JSON.stringify(defaultProfile()) });
+    const waitFor = (re: RegExp): void => {
+      for (let i = 0; i < 800 && !re.test(page.region().at(-1) ?? ''); i++) page.frames(100);
+      expect(page.region().at(-1)).toMatch(re);
+    };
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toMatch(/^Welcome\. How would you like to play\? Just play$/);
+    waitFor(/^More time$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toMatch(/^More time\. Slow speed, and slower scanning\. Ghastly Moves\. .* Play$/);
+    expect(JSON.parse(localStorage.getItem('marrow.profile')!)).toMatchObject({ setupDone: true, dwellMs: 3000 });
+
+    waitFor(/^Settings$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toBe('Settings. Back');
+    waitFor(/^Game speed: Slow$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toBe('Game speed: Medium');
+    expect(JSON.parse(localStorage.getItem('marrow.profile')!)).toMatchObject({ speed: 'medium' });
+    expect((document.getElementById('speed') as HTMLSelectElement).value).toBe('medium');
+
+    waitFor(/^Back$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toMatch(/^Ghastly Moves\. .* Settings$/); // back where you were
+    waitFor(/^Play$/);
+    page.key('Space', ' ');
+    page.frames(300);
+    expect(page.region().join(' | ')).toMatch(/Jump on every multiple of 3/);
   });
 
   it('timing help is a saved choice', async () => {

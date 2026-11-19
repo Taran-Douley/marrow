@@ -177,3 +177,53 @@ export function wrapWords(text: string, width: (s: string) => number, max: numbe
   if (line) lines.push(line);
   return lines.length > 0 ? lines : [''];
 }
+
+/**
+ * Draw a scanning menu: a title, then every entry, the lit one marked with an arrow, a thick box and
+ * the highlight colour, so it is never colour alone. The text shrinks to fit the box; it never spills.
+ */
+export function drawMenu(
+  ctx: CanvasRenderingContext2D,
+  profile: Profile,
+  rect: Rect,
+  menu: { title: string; labels: readonly string[]; lit: number },
+  style: Partial<WebStyle> = {},
+): void {
+  const t: ThemeTokens = { ...themeFor(profile.theme, profile.palette), ...style.tokens };
+  const font = style.fontFamily ?? DEFAULT_FONT;
+  const pad = 14;
+  const rows = menu.labels.length + 1;
+  let size = Math.round(22 * Math.max(1, Math.min(2, profile.textScale)));
+  const widest = (px: number): number => {
+    ctx.font = `bold ${px}px ${font}`;
+    return Math.max(...[menu.title, ...menu.labels.map((l) => `▶ ${l}`)].map((l) => ctx.measureText(l).width));
+  };
+  while (size > 12 && (rows * size * 1.5 + pad * 2 > rect.height || widest(size) + pad * 2 > rect.width)) size -= 1;
+  const lineH = Math.round(size * 1.5);
+  const height = Math.min(rect.height, rows * lineH + pad * 2);
+
+  ctx.save();
+  ctx.fillStyle = t.panel;
+  ctx.fillRect(rect.x, rect.y, rect.width, height);
+  ctx.strokeStyle = t.line;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, height - 2);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = t.mutedText;
+  ctx.font = `bold ${size}px ${font}`;
+  ctx.fillText(menu.title, rect.x + pad, rect.y + pad, rect.width - pad * 2);
+  menu.labels.forEach((label, i) => {
+    const y = rect.y + pad + (i + 1) * lineH;
+    const lit = i === menu.lit;
+    if (lit) {
+      ctx.strokeStyle = t.amber;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(rect.x + 6, y - 4, rect.width - 12, lineH);
+    }
+    ctx.fillStyle = lit ? t.amber : t.text;
+    ctx.font = `${lit ? 'bold ' : ''}${size}px ${font}`;
+    ctx.fillText(lit ? `▶ ${label}` : `   ${label}`, rect.x + pad, y, rect.width - pad * 2);
+  });
+  ctx.restore();
+}

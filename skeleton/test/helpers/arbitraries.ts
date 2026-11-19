@@ -23,6 +23,8 @@ export const profileArb: fc.Arbitrary<Profile> = fc.record({
   scanning: fc.boolean(),
   holdToConfirm: fc.boolean(),
   setupDone: fc.boolean(),
+  coachLeadMs: fc.constantFrom(0, 1000, 2000, 3000),
+  announce: fc.constantFrom('minimal' as const, 'normal' as const, 'detailed' as const),
 });
 
 /** Seeds for the level generator. */

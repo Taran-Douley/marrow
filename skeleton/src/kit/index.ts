@@ -14,7 +14,11 @@ import {
   LevelRefused,
   eventsReachTwoSenses,
   lessonProperty,
+  linesInScript,
+  noHoldOrChord,
+  noUnsafeFlashing,
   prove,
+  themesHaveContrast,
   songProperties,
   type ProofProperty,
   type ProofResult,
@@ -81,6 +85,11 @@ export interface KitConfig {
    * Adds proofs 15, 16 and 103.
    */
   song?: Song;
+  /**
+   * Offer the coach: a short spoken heads-up before each countdown, for players who need more time
+   * (Requirement 21). Off by default; the player then turns it on, and picks the lead, in their profile.
+   */
+  coach?: boolean;
 }
 
 /** One line the game can speak, so a creator knows exactly what to record or generate. */
@@ -103,11 +112,15 @@ export interface KitRunOptions {
   onRestart?(levelTime: number): void;
   /** Timing help: a press any time in the countdown counts, and the move is made on the fourth beat. */
   assist?: boolean;
+  /** The player's coach lead in real ms (profile.coachLeadMs). Used only when the kit offers the coach. */
+  coachLeadMs?: number;
 }
 
 export interface Kit {
   readonly lesson: Lesson | undefined;
   readonly song: Song | undefined;
+  /** True when this game offers the coach. */
+  readonly coach: boolean;
   readonly timing: Timing;
   readonly registry: Registry;
   readonly events: EventRegistry;
@@ -140,6 +153,12 @@ export interface Kit {
   renderLevel(level: Level, profile?: Profile): OutputCommand[];
   /** Every line the game can speak. Record these, or send them to a voice service, then plug the audio in. */
   lineScript(): ScriptLine[];
+  /**
+   * The properties about how the game is presented, for a sample level (or yours): 7 no unsafe flashing
+   * at every speed and with reduced motion, 8 every event reaches two senses, 9 contrast, 10 no hold
+   * or chord, 11 every spoken line is in the line script.
+   */
+  provePresentation(level?: Level): ProofResult[];
 }
 
 export function createKit(config: KitConfig = {}): Kit {
@@ -185,6 +204,7 @@ export function createKit(config: KitConfig = {}): Kit {
   return {
     lesson,
     song,
+    coach: config.coach === true,
     timing,
     registry,
     events,
@@ -210,6 +230,7 @@ export function createKit(config: KitConfig = {}): Kit {
         { type: EVENT_TYPES.hurt, at: 0 },
         { type: EVENT_TYPES.levelComplete, at: 0 },
         ...(song ? (['jump', 'flip', 'switch'] as const).map((move) => ({ type: EVENT_TYPES.portal, at: 0, data: { move } })) : []),
+        ...(config.coach ? [{ type: EVENT_TYPES.coach, at: 0, data: { object, move: 'jump' } }] : []),
       ];
       const own: SemanticEvent[] = events
         .list()
@@ -238,9 +259,10 @@ export function createKit(config: KitConfig = {}): Kit {
       if (failures.length > 0) throw new LevelRefused(failures);
       return level;
     },
-    run: ({ assist, ...options }) =>
+    run: ({ assist, coachLeadMs, ...options }) =>
       createRun({
         ...options,
+        ...(config.coach && coachLeadMs ? { coachLeadMs } : {}),
         timing,
         events: levelEvents(options.level, timing),
         ...(config.run || assist !== undefined ? { settings: { ...config.run, ...(assist !== undefined ? { assist } : {}) } } : {}),
@@ -263,6 +285,23 @@ export function createKit(config: KitConfig = {}): Kit {
     },
     renderLevel: (level, profile = newProfile()) =>
       levelEvents(level, timing).flatMap((event) => renderEvent(event, profile, channels)),
+    provePresentation(level) {
+      const sample = level ?? (registry.kinds().length > 0 ? this.generate(1) : undefined);
+      const profile = newProfile();
+      const results: ProofResult[] = [];
+      if (sample) {
+        // Flashing at the fastest speed is the worst case; reduced motion must not flash at all.
+        const worst = (['slow', 'medium', 'fast'] as const)
+          .map((speed) => noUnsafeFlashing(this.renderLevel(sample, { ...profile, speed }), timing.rates[speed], false, `Level ${sample.seed} at ${speed}`))
+          .find((r) => !r.pass);
+        const still = noUnsafeFlashing(this.renderLevel(sample, { ...profile, reducedMotion: true }), timing.rates.fast, true, `Level ${sample.seed}, reduced motion`);
+        results.push(worst ?? still);
+      }
+      results.push(this.proveEvents(profile), themesHaveContrast(), noHoldOrChord());
+      const spoken = (sample ? this.renderLevel(sample, profile) : []).flatMap((c) => (c.channel === 'speech' ? [c.text] : []));
+      results.push(linesInScript(spoken, this.lineScript()));
+      return results;
+    },
     lineScript() {
       const lines = new Map<string, ScriptLine>();
       const add = (text: string, from: string): void => {
@@ -281,6 +320,7 @@ export function createKit(config: KitConfig = {}): Kit {
         add(strings.number, 'the number on each obstacle');
         add(strings.streak, 'a streak of five or ten');
       }
+      if (config.coach) add(strings.coach, 'the coach, before each countdown');
       if (song) {
         const moves = new Set(song.sections.map((s) => s.move).filter((m) => m !== undefined));
         if (moves.has('jump') || moves.size > 0) add(phrase('portalJump', {}, strings), 'a portal back to jump mode');
