@@ -76,6 +76,8 @@ The Marrow kit: events in, accessible output out, and a property-based proof tha
 - \`@marrow/skeleton\`: the core (no DOM): \`createKit\`, the proof, personas, the reviewer, the accessibility report.
 - \`@marrow/skeleton/web\`: the web adapter (sound, speech, captions, haptics, input, storage, offline).
 - \`@marrow/skeleton/vite\`: a Vite plugin that writes the offline service worker.
+- \`@marrow/skeleton/catalogue\`: ready-made objects with sound, speech, caption and vibration.
+- \`@marrow/skeleton/advisor\`: the accessibility advisor: brief, suggestions, palettes, plan, build, quality report.
 
 Guides are in the power's \`skills/build-an-accessible-game/references/\`. Licence: MIT.
 `,
@@ -83,6 +85,9 @@ Guides are in the power's \`skills/build-an-accessible-game/references/\`. Licen
 
 // ---- the MCP server -----------------------------------------------------------------------------
 cpSync(bundle, fresh(join('mcp', 'level-forge.js')));
+// The advisor's command line: describe the game, get a plan, build it (node mcp/advisor.js).
+const advisorBundle = join(root, 'mcp', 'level-forge', 'dist', 'advisor.js');
+if (existsSync(advisorBundle)) cpSync(advisorBundle, fresh(join('mcp', 'advisor.js')));
 
 // ---- references ---------------------------------------------------------------------------------
 const references = fresh(join('skills', 'build-an-accessible-game', 'references'));

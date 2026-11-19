@@ -178,7 +178,7 @@ describe('the app uses only the public API (structure.md)', () => {
       for (const m of text.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
         const spec = m[1]!;
         if (spec.includes('skeleton')) {
-          expect(['@marrow/skeleton', '@marrow/skeleton/web', '@marrow/skeleton/vite', '@marrow/skeleton/catalogue'], `${file} imports ${spec}`).toContain(spec);
+          expect(['@marrow/skeleton', '@marrow/skeleton/web', '@marrow/skeleton/vite', '@marrow/skeleton/catalogue', '@marrow/skeleton/advisor'], `${file} imports ${spec}`).toContain(spec);
         }
       }
     }

@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Keep the accessibility plan in step with the game",
+      "description": "When a game's brief.md is saved (a new feature, a change of idea), make each accessibility plan again. Every decision and note is kept; new suggestions are marked new, and agreed ones that no longer fit are kept and marked. Then ask the accessibility designer to talk it through.",
+      "trigger": "PostFileSave",
+      "matcher": "(^|[/\\\\])brief\\.md$",
+      "action": { "type": "command", "command": "node scripts/advise.mjs advise-all" },
+      "timeout": 60
+    }
+  ]
+}

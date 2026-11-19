@@ -12,6 +12,7 @@
     "test": "vitest run",
     "report": "vitest run test/report.test.ts -u",
     "proof-report": "vitest run test/proof-report.test.ts -u",
+    "quality": "vitest run test/quality.test.ts -u",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
