@@ -158,7 +158,7 @@ describe('prove_house', () => {
     expect(ritual.data.results.map((r: { id: number }) => r.id)).toEqual([201, 202, 203, 204, 205, 206]);
   });
 
-  it('proves the run length (207) when asked: some 12 by 10 houses fit 5 to 8 minutes at every speed and dwell, and a small house does not', () => {
+  it('proves the run length (207) when asked: 12 by 10 houses are laid out to fit 5 to 8 minutes at every speed and dwell, and a small house cannot', () => {
     const ids = (r: { data: Record<string, any> }): number[] => r.data.results.map((x: { id: number }) => x.id);
     let fits = 0;
     for (let seed = 1; seed <= 40; seed++) {
@@ -170,13 +170,13 @@ describe('prove_house', () => {
       expect(r.data.passed).toBe(length.pass);
       if (length.pass) fits += 1;
     }
-    expect(fits).toBeGreaterThan(0);
-    expect(fits).toBeLessThan(40);
+    // The generator fits the length, as the game does: at least 80% of seeds (all of them, in practice).
+    expect(fits).toBeGreaterThanOrEqual(32);
     const small = call('prove_house', { seed: 2, width: 8, height: 8, relics: 3, runLength: true });
     expect(small.data.passed).toBe(false);
     expect(small.text).toMatch(/Run length fits/);
     expect(call('prove_house', { seed: 2, relics: 3, runLength: 'yes' }).isError).toBe(true);
-  });
+  }, 120_000);
 });
 
 describe('review_level', () => {

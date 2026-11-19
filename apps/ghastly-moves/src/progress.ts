@@ -56,7 +56,7 @@ export function describeNext(p: Progress): string {
 }
 
 /** The story map in words, one line per place. Also used by the page for screen readers. */
-export function mapLines(p: Progress): string[] {
+export function mapLines(p: Progress, far: Far = {}): string[] {
   const next = nextStage(p);
   return STAGES.map((s) => {
     const rank = p.best[String(s.id)];
@@ -65,8 +65,19 @@ export function mapLines(p: Progress): string[] {
       : next?.id === s.id
         ? 'next'
         : 'not yet';
-    return `Stage ${s.id}, ${s.name}: ${s.rule}. ${state}${rank ? `. Best rank ${rank}` : ''}.`;
+    const furthest = bestWords(far, s.id);
+    return `Stage ${s.id}, ${s.name}: ${s.rule}. ${state}${rank ? `. Best rank ${rank}` : ''}.${furthest ? ` ${furthest}` : ''}`;
   });
+}
+
+/**
+ * The furthest share of a stage and of its boss passed in one clean stretch, in words for the map, the
+ * stage list and the scanning menu: 'Best run 62%. Boss best 40%.' Empty when neither has been played.
+ */
+export function bestWords(far: Far, stageId: number): string {
+  const stage = far[String(stageId)];
+  const boss = far[`${stageId}b`];
+  return [stage ? `Best run ${stage}%.` : '', boss ? `Boss best ${boss}%.` : ''].filter(Boolean).join(' ');
 }
 
 // ---- the furthest you got ------------------------------------------------------------

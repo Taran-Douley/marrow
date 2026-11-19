@@ -6,8 +6,8 @@ Made by a test, never by hand. `npm run proof-report --workspace apps/seance-esc
 
 | House size | Houses proved | Seeds with no fair house at this size | Fewest steps to escape, on average |
 |---|---|---|---|
-| small (6 by 6) | 200 of 200 | 0 | 47 |
-| medium (8 by 8) | 200 of 200 | 0 | 77 |
-| large (10 by 10) | 200 of 200 | 0 | 110 |
+| small (6 by 6) | 169 of 200 | 31 | 49 |
+| medium (8 by 8) | 200 of 200 | 0 | 81 |
+| large (10 by 10) | 200 of 200 | 0 | 113 |
 
 A house that cannot be proved is never served. For a seed with no fair house, the game says so and asks for a bigger house.

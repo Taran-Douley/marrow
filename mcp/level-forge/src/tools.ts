@@ -8,6 +8,7 @@ import {
   isSolid,
   personaReport,
   proveMaze,
+  proveRunLength,
   reviewLevel,
   reviewLevels,
   takeoffWindow,
@@ -297,7 +298,16 @@ const proveHouseTool: Tool = {
     let results: ProofResult[];
     try {
       if (args.runLength !== undefined && typeof args.runLength !== 'boolean') throw new ArgumentError("'runLength' must be true or false.");
-      results = proveMaze(generateMaze(seed, options), `House ${seed}`, args.runLength === true ? { runLength: true } : {});
+      // With runLength on, lay the house out the way the game does: again until a clean run fits 5 to 8 minutes.
+      // A size that can never fit (a small house is always too short) is laid out plainly, so 207 says why.
+      let house: ReturnType<typeof generateMaze>;
+      try {
+        house = generateMaze(seed, args.runLength === true ? { ...options, fit: (h) => proveRunLength(h, '').pass } : options);
+      } catch (error) {
+        if (args.runLength !== true) throw error;
+        house = generateMaze(seed, options);
+      }
+      results = proveMaze(house, `House ${seed}`, args.runLength === true ? { runLength: true } : {});
     } catch (error) {
       throw new ArgumentError(error instanceof Error ? error.message : String(error));
     }

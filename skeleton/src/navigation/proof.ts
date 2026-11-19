@@ -1,5 +1,5 @@
 import { proofResult, type ProofResult } from '../proof';
-import { RUN_BAND, RUN_PROFILES, estimateRunMs, runLengthWords, type RunLines, type RunProfile } from './explorer';
+import { RUN_BAND, RUN_PROFILES, estimateRunMs, runLengthWords, type ExplorerMaze, type RunLines, type RunProfile } from './explorer';
 import { distancesFrom, indexOf, neighbour, opposite, openings, sameCell, simulateRitual, type Cell, type Maze } from './maze';
 
 const where = (c: { x: number; y: number }): string => `column ${c.x + 1}, row ${c.y + 1}`;
@@ -33,7 +33,7 @@ export interface RunLengthOptions {
 }
 
 /** Property 207. Exported so a game can judge a house by its own profiles and words. */
-export function proveRunLength(maze: Maze, label: string, options: RunLengthOptions = {}): ProofResult {
+export function proveRunLength(maze: ExplorerMaze, label: string, options: RunLengthOptions = {}): ProofResult {
   const band = options.band ?? RUN_BAND;
   const profiles = options.profiles ?? RUN_PROFILES;
   const problems: string[] = [];

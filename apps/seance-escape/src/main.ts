@@ -30,7 +30,7 @@ import {
   type WalkSnapshot,
 } from '@marrow/skeleton';
 import { clipsBySlug, createWebAdapter, drawMenu, registerOffline } from '@marrow/skeleton/web';
-import { MABEL, PASSAGE, RELICS, WARDROBE, WHISPERS, nameRooms, type Floor, type RoomInfo, type RoomKind } from './content';
+import { MABEL, PASSAGE, RELICS, ROOM_EVENT_STYLES, SEARCH_LINES, WARDROBE, WHISPERS, nameRooms, sideWord, type Floor, type RoomInfo, type RoomKind } from './content';
 import { CLOSE_RANGE, heartRate, heartWords } from './dread';
 import { GUIDE, type GuideItem } from './guide';
 import { FRIGHTS, createSeanceKit, type Fright } from './kit';
@@ -48,6 +48,7 @@ import {
   type RunEnd,
   type Size,
 } from './runs';
+import { drawNoiseMeter, gutterDark } from './risk-view';
 import { HEIGHT, WIDTH, drawScene } from './scene';
 import { createView3d, type View3d } from './view3d';
 
@@ -113,6 +114,8 @@ let whispersHeard = 0;
 /** The kinds of room Mabel has already talked about. */
 const mabelSaid = new Set<RoomKind>();
 let snapshot: WalkSnapshot | null = null;
+/** When the lights last guttered, in performance time, or -Infinity. */
+let gutterAt = -Infinity;
 let startedAt = 0;
 let nextBarAt = 0;
 let bar = 0;
@@ -206,7 +209,16 @@ element('start').addEventListener('click', () => {
 /** Send one event to the player. `now` is seconds since the walk began; the walk runs in real time. */
 function emit(event: SemanticEvent, now: number): void {
   // Each relic hums in its own voice.
-  const shown = event.type === 'relic-sense' && typeof event.data?.relic === 'number' ? { ...event, type: `relic-sense-${event.data.relic}` } : event;
+  let shown = event.type === 'relic-sense' && typeof event.data?.relic === 'number' ? { ...event, type: `relic-sense-${event.data.relic}` } : event;
+  // Each room event and each band of the noise meter has its own sound, caption and line.
+  if (event.type === 'room-event') {
+    const id = String(event.data?.id);
+    shown = { ...event, type: `room-event-${id}` };
+    // The lights gutter: the room dims for a moment (never a flash; see risk-view.ts).
+    if (ROOM_EVENT_STYLES[id]?.visual === 'gutter') gutterAt = performance.now();
+  } else if (event.type === 'noise-meter') {
+    shown = { ...event, type: `noise-meter-${String(event.data?.band).replace(' ', '-')}` };
+  }
   // Once the ritual is done, the music is the chase.
   const from = shown.type === EVENT_TYPES.atmosphere && snapshot?.chasing ? chaseKit : kit;
   const commands = from.render(stepByFloor(shown), profile);
@@ -290,6 +302,28 @@ function decorate(type: string, data: Readonly<Record<string, unknown>>): Record
       const way = MABEL.hint(data.what === 'exit' ? 'exit' : 'relic', String(data.way), Number(data.rooms));
       // After a few catches Mabel steps in without being asked.
       return { line: data.free ? `${MABEL.offer} ${way}` : way };
+    }
+    case 'room-event': {
+      const style = ROOM_EVENT_STYLES[String(data.id)];
+      if (!style) return undefined;
+      // The scary ones are softened with the Fright setting. Their information is never taken away.
+      let line = fright() !== 'full' && style.soft ? style.soft : style.line;
+      if (data.effect === 'hint') line += ' ' + MABEL.hint(data.what === 'exit' ? 'exit' : 'relic', String(data.way), Number(data.rooms));
+      if (data.effect === 'ghost-place') line += ` The phantom is ${sideWord(Number(data.angle))}, ${Number(data.rooms)} rooms away.`
+      // Heard from somewhere in the room, or from the phantom if the event tells where it is.
+      const hash = [...String(data.id)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 300, 7);
+      const angle = typeof data.angle === 'number' ? data.angle : hash - 150;
+      return { line, caption: style.caption, angle, distance: 0.5 };
+    }
+    case 'walk-search': {
+      if (data.result === 'relic') {
+        const way = MABEL.hint('relic', String(data.way), Number(data.rooms));
+        return { line: SEARCH_LINES.relic(way), caption: 'Search: a note points the way' };
+      }
+      if (data.result === 'trail') {
+        return { line: SEARCH_LINES.trail(Number(data.angle), Number(data.rooms), data.near === true), caption: data.near === true ? 'Search: scuff marks, the phantom is near' : 'Search: old scuff marks' };
+      }
+      return { line: SEARCH_LINES.nothing, caption: 'Search: only dust' };
     }
     case 'ghost-call': {
       const s = walk?.snapshot();
@@ -396,11 +430,11 @@ function start(): void {
   whispersHeard = 0;
   mabelSaid.clear();
   lastRoom = null;
-  lastGhost = '';
   nextMoanAt = performance.now() + 4000;
   nextGustAt = performance.now() + 6000;
   nextThunderAt = performance.now() + 20000;
   nextBreathAt = 0;
+  gutterAt = -Infinity;
   // The first-person 3D view, if this browser can do it. Otherwise (or with ?view=2d) the flat map, which plays the same.
   closeView();
   if (new URLSearchParams(location.search).get('view') !== '2d') view = createView3d(canvas3d, house, rooms);
@@ -423,7 +457,7 @@ function start(): void {
     dwellMs: profile.dwellMs,
     emit,
     decorate,
-    settings: { hintLabel: 'Ask Mabel' },
+    settings: { hintLabel: 'Ask Mabel: the phantom moves once' },
     // The walk waits for each spoken line to finish before it reads out the options.
     speechMs: (event) => spokenMs(event),
     quietMs: spokenMs(intro),
@@ -694,13 +728,10 @@ function atmosphere(now: number): void {
 // ---- the house is alive ------------------------------------------------------------
 
 let lastRoom: number | null = null;
-let lastGhost = '';
 let nextMoanAt = 0;
 let nextGustAt = 0;
 let nextThunderAt = 0;
 let nextBreathAt = 0;
-/** The phantom's feet are heard from this many rooms away. */
-const GHOST_STEPS_HEARD = 4;
 
 const between = (lo: number, hi: number): number => lo + Math.random() * (hi - lo);
 
@@ -720,13 +751,7 @@ function livingHouse(now: number): void {
   if (s.phase !== 'caught') {
     const d = phantomRooms(s, maze);
     const b = bearingFrom(s.cell, s.facing, s.ghost);
-    const ghostKey = `${s.ghost.x},${s.ghost.y}`;
-    if (ghostKey !== lastGhost) {
-      if (lastGhost !== '' && d <= GHOST_STEPS_HEARD) {
-        emit({ type: 'ghost-step', at, data: { angle: b.angle, distance: Math.min(1, d / (GHOST_STEPS_HEARD + 1)) } }, at);
-      }
-      lastGhost = ghostKey;
-    }
+    // Its feet are sounded by the walk itself, from where it is, each time it moves (see `ghost-step`).
     if (now >= nextMoanAt && d <= DEFAULT_WALK_SETTINGS.hearRange + 1) {
       emit({ type: 'ghost-moan', at, data: { angle: b.angle, distance: Math.min(1, d / (DEFAULT_WALK_SETTINGS.hearRange + 2)) } }, at);
       const hunting = s.chasing || s.ghostMode === 'hunt';
@@ -776,6 +801,15 @@ function frame(): void {
     const heart = walk && snapshot && maze ? heartWords(heartRate(phantomRooms(snapshot, maze))) : '';
     const room = snapshot && snapshot.room !== null ? capital(rooms[snapshot.room]?.name ?? '') : '';
     drawScene(ctx!, profile, { maze, snapshot, nowMs: now, sight: 2, title: 'Séance Escape', heart, room }, view !== null);
+    // The noise you are making, in bars and words; and the room dimming when the lights gutter (still when motion is reduced).
+    if (walk && snapshot && mode === 'playing') {
+      const dark = gutterDark(now - gutterAt, profile.reducedMotion);
+      if (dark > 0) {
+        ctx!.fillStyle = `rgba(4, 2, 8, ${dark.toFixed(3)})`
+        ctx!.fillRect(0, 0, WIDTH, HEIGHT);
+      }
+      drawNoiseMeter(ctx!, snapshot.noise, WIDTH - 232 - 40, HEIGHT - 110 - 34 - 8);
+    }
     const menuView = mode === 'menu' ? menus.view() : null;
     if (menuView) drawMenu(ctx!, profile, { x: WIDTH / 2 - 230, y: 70, width: 460, height: HEIGHT - 200 }, menuView);
     adapter.drawCaptionBox(ctx!, profile, { x: 40, y: HEIGHT - 110, width: WIDTH - 80, height: 90 });

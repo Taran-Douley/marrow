@@ -211,3 +211,112 @@ export const MABEL = {
     conservatory: 'Listen to that rain. It always rains in here.',
   } as Partial<Record<RoomKind, string>>,
 };
+
+// ---- noise and risk (spec seance-runs, stage 2) ---------------------------------------------------
+
+/** The noise meter, in the player's words. Only a change of band is told. */
+export const NOISE_WORDS: Record<'quiet' | 'loud' | 'very loud', { say: string; caption: string; detail: string }> = {
+  quiet: { say: 'Quiet.', caption: 'Noise: quiet', detail: 'Your steps are quiet.' },
+  loud: { say: 'Loud.', caption: 'Noise: loud', detail: 'The phantom can hear that from some way off.' },
+  'very loud': { say: 'Very loud!', caption: 'Noise: very loud', detail: 'The phantom can hear that from a long way off.' },
+};
+
+/** A bearing in words, for a line that says where something is. */
+export function sideWord(angle: number): string {
+  const a = Math.abs(angle);
+  return a <= 45 ? 'ahead' : a >= 135 ? 'behind you' : angle < 0 ? 'to your left' : 'to your right';
+}
+
+/** What a search turns up, in words. The noise and the cost are told in the option before it is chosen. */
+export const SEARCH_LINES = {
+  relic: (hint: string): string => `You search the room. That was loud. You find a torn note. ${hint}`,
+  trail: (angle: number, rooms: number, near: boolean): string =>
+    near
+      ? `You search the room. That was loud. You find scuff marks in the dust. The phantom is ${sideWord(angle)}, ${rooms} ${rooms === 1 ? 'room' : 'rooms'} away.`
+      : 'You search the room. That was loud. You find scuff marks, but they are old. The phantom is far away.',
+  nothing: 'You search the room. That was loud, and you find only dust.',
+};
+
+/** The phantom heard a noise it was too far to hunt you for, and has gone to see. */
+export const GHOST_HEARD = { say: 'It heard that. It is coming to look.', caption: 'It heard that. It is coming to look.' };
+
+// ---- room events (stage 3) ----------------------------------------------------------------------
+
+type EventSound = { hz: number; wave: Wave; gain: number; shape: SoundShape };
+
+export interface RoomEventStyle {
+  /** What the picture says: short, for the caption box. */
+  caption: string;
+  /** What the voice says. */
+  line: string;
+  /** The same, softened, when Fright is gentle or off. Only scary events have one. */
+  soft?: string;
+  /** What it sounds like. A scary event is softened by Fright (see kit.ts). */
+  sound: EventSound;
+  /** The picture, if it is more than the caption: a dimming of the room. Never a flash. */
+  visual?: 'gutter';
+  haptic?: number[];
+}
+
+/** The text and sound of each room event in the skeleton's table (ROOM_EVENTS), by id. */
+export const ROOM_EVENT_STYLES: Record<string, RoomEventStyle> = {
+  'door-slam': {
+    caption: 'A door slams!',
+    line: 'A door slams somewhere close. That was loud. The phantom may have heard it.',
+    soft: 'A door closes somewhere close. That was loud. The phantom may have heard it.',
+    sound: { hz: 90, wave: 'square', gain: 0.8, shape: { hzTo: 45, filterHz: 500, seconds: 0.5 } },
+    haptic: [120, 40, 60],
+  },
+  'chains-rattle': {
+    caption: 'Chains rattle',
+    line: 'Chains rattle in the walls. That was loud. The phantom may have heard it.',
+    soft: 'Something metal rattles in the walls. That was loud. The phantom may have heard it.',
+    sound: { hz: 0, wave: 'sine', gain: 0.6, shape: { noise: true, filterHz: 5200, filterTo: 2400, seconds: 1.1 } },
+    haptic: [30, 30, 30, 30, 30],
+  },
+  'cold-draught': {
+    caption: 'A cold draught',
+    line: 'A cold draught slips past you.',
+    sound: { hz: 0, wave: 'sine', gain: 0.5, shape: { noise: true, filterHz: 500, filterTo: 1500, seconds: 1.2 } },
+  },
+  'whispers-in-the-walls': {
+    caption: 'Whispers in the walls',
+    line: 'The walls whisper, and for a moment you know where it is.',
+    sound: { hz: 0, wave: 'sine', gain: 0.45, shape: { noise: true, filterHz: 2800, filterTo: 1100, seconds: 1.6 } },
+  },
+  'music-box': {
+    caption: 'A music box starts',
+    line: 'A music box starts to play, a long way off. Now you know where it is.',
+    sound: { hz: 880, wave: 'triangle', gain: 0.35, shape: { hzTo: 988, seconds: 1.4 } },
+  },
+  'lights-gutter': {
+    caption: 'The lights gutter',
+    line: 'The lantern gutters, the light sinks, and then it steadies.',
+    sound: { hz: 0, wave: 'sine', gain: 0.4, shape: { noise: true, filterHz: 900, filterTo: 250, seconds: 1.3 } },
+    visual: 'gutter',
+  },
+  'portrait-watches': {
+    caption: 'A portrait watches you',
+    line: 'A portrait on the wall watches you. Its eyes follow you across the room.',
+    soft: 'A portrait hangs on the wall. It looks very old.',
+    sound: { hz: 330, wave: 'triangle', gain: 0.5, shape: { hzTo: 392, filterHz: 1200, seconds: 1.3 } },
+  },
+  'clock-strikes': {
+    caption: 'A clock strikes',
+    line: 'A clock strikes, slow and low, and loses count.',
+    sound: { hz: 196, wave: 'sine', gain: 0.55, shape: { hzTo: 190, seconds: 2.4 } },
+  },
+  'cold-hand': {
+    caption: 'A cold hand on your shoulder',
+    line: 'A cold hand rests on your shoulder, and is gone.',
+    soft: 'A chill touches your shoulder, and is gone.',
+    sound: { hz: 0, wave: 'sine', gain: 0.5, shape: { noise: true, filterHz: 700, filterTo: 180, seconds: 1.0 } },
+    haptic: [50, 60, 20],
+  },
+  scratching: {
+    caption: 'Scratching in the walls',
+    line: 'Something scratches inside the walls, then stops.',
+    soft: 'Something small scratches in the walls, then stops.',
+    sound: { hz: 0, wave: 'sine', gain: 0.45, shape: { noise: true, filterHz: 4200, filterTo: 3000, seconds: 0.7 } },
+  },
+};

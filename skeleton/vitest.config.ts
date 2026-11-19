@@ -5,6 +5,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     environment: 'node',
     // The property-based proofs run hundreds of houses; give them room on a small or busy machine.
-    testTimeout: 30_000,
+    // Some take 20 to 26 s alone, so 30 s was too tight when the machine is busy.
+    testTimeout: 120_000,
   },
 });

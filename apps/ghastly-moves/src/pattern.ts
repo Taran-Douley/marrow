@@ -21,6 +21,9 @@ import type { StageSong } from './songs';
 // cues), and it starts a whole bar before the first throw it announces (property 23). Presses stay
 // on the beat like everywhere else (property 19).
 
+/** The drawn shapes a throw can have (see objects/projectile.ts). */
+export type ThrowShape = 'bomb' | 'bone' | 'skull' | 'star' | 'ball' | 'bolt' | 'web' | 'wheel' | 'spider' | 'wisp' | 'bat' | 'coffin';
+
 /** One kind of throw. */
 export interface ThrowKind {
   /** Short id used in the song's part names: 'lob' or 'roll'. */
@@ -30,8 +33,14 @@ export interface ThrowKind {
   /** What the player hears and reads: 'lobbed bomb'. */
   label: string;
   colour: string;
-  /** How it is drawn: lobbed (arcs in from above) or rolled (along the ground). */
-  motion: 'lobbed' | 'rolled';
+  /** How it comes: lobbed (arcs in from above), rolled (along the ground) or swooped (flies in on a slant). */
+  motion: 'lobbed' | 'rolled' | 'swooped';
+  /** What it looks like. Kinds in one fight differ in shape as well as colour. */
+  shape: ThrowShape;
+  /** Said in the introduction: what the tell sounds like, 'A rising sound'. Followed by 'means' and `plural`. */
+  heard: string;
+  /** The kind in the plural, for the introduction: 'lobbed bombs'. */
+  plural: string;
   /** The beep voice of this kind of throw: the countdown beeps and approach tone use it. */
   beep: { hz: number; wave: Wave };
   /** The boss's throw: a short sound just before the countdown. */
@@ -44,8 +53,12 @@ export interface BossPattern {
   throws: readonly ThrowKind[];
   /** The fixed order of volleys, as ids of throws. The fight plays them in this order. */
   volleys: readonly string[];
-  /** How long each volley is, in bars of four beats. */
+  /** How long each volley is, in bars of four beats, unless `volleyBars` says otherwise. */
   bars: number;
+  /** A length for each volley, in order, to make some volleys longer than others. */
+  volleyBars?: readonly number[];
+  /** What one throw is called in the introduction: 'bomb'. */
+  noun: string;
 }
 
 /** How long before the first beep the boss throws, in running seconds, so the whoosh never sits on a beep. */
@@ -64,6 +77,9 @@ export const PUMPKIN_PATTERN: BossPattern = {
       label: 'lobbed bomb',
       colour: '#ff9a2e',
       motion: 'lobbed',
+      shape: 'bomb',
+      heard: 'A rising sound',
+      plural: 'lobbed bombs',
       beep: { hz: 659, wave: 'sine' },
       whoosh: { hz: 0, wave: 'sine', gain: 0.45, shape: { noise: true, filterHz: 400, filterTo: 2600, seconds: 0.26 } },
       tell: {
@@ -82,6 +98,9 @@ export const PUMPKIN_PATTERN: BossPattern = {
       label: 'rolled bomb',
       colour: '#c4601a',
       motion: 'rolled',
+      shape: 'bomb',
+      heard: 'A low rumble',
+      plural: 'rolled bombs',
       beep: { hz: 392, wave: 'square' },
       whoosh: { hz: 90, wave: 'square', gain: 0.5, shape: { filterHz: 320, filterTo: 160, hzTo: 60, seconds: 0.45 } },
       tell: {
@@ -97,6 +116,7 @@ export const PUMPKIN_PATTERN: BossPattern = {
   ],
   volleys: ['lob', 'roll', 'lob', 'roll', 'lob', 'roll'],
   bars: 4,
+  noun: 'bomb',
 };
 
 export const throwByName = (pattern: BossPattern, name: string): ThrowKind | undefined => pattern.throws.find((t) => t.name === name);
@@ -107,12 +127,12 @@ const intro = { name: 'Intro', bars: 2, feel: 'rest' } as const;
 export function patternSong(pattern: BossPattern, beat: number, name = 'Boss pattern'): StageSong {
   const sections = [
     intro,
-    ...pattern.volleys.flatMap((id) => {
+    ...pattern.volleys.flatMap((id, i) => {
       const kind = pattern.throws.find((t) => t.id === id);
       if (!kind) throw new Error(`The pattern names a volley '${id}', but there is no throw with that id.`);
       return [
         { name: `Tell ${id}`, bars: 1, feel: 'rest' },
-        { name: `Volley ${id}`, bars: pattern.bars, feel: 'busy', move: 'jump', kinds: [kind.name] },
+        { name: `Volley ${id}`, bars: pattern.volleyBars?.[i] ?? pattern.bars, feel: 'busy', move: 'jump', kinds: [kind.name] },
       ] as const;
     }),
   ];
@@ -131,7 +151,7 @@ export function patternEvents(pattern: BossPattern): Record<string, EventPresent
     };
     events[`boss-throw-${t.id}`] = {
       sound: { hz: t.whoosh.hz, wave: t.whoosh.wave, gain: t.whoosh.gain, role: 'effect', shape: t.whoosh.shape },
-      haptic: t.motion === 'rolled' ? [90, 40, 90] : [25],
+      haptic: t.motion === 'rolled' ? [90, 40, 90] : t.motion === 'swooped' ? [15, 20, 15] : [25],
     };
   }
   return events;

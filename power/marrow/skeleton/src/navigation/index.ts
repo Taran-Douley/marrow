@@ -1,8 +1,10 @@
-export { generateMaze, DEFAULT_MAZE, phantomStart, phantomTurn, simulateRitual, pathBetween, PHANTOM_NOTICE, PHANTOM_LOSE_AFTER, openings, neighbour, distancesFrom, stepToward, fewestSteps, sameCell, indexOf, opposite, DIRS } from './maze';
+export { generateMaze, DEFAULT_MAZE, phantomStart, phantomTurn, phantomHears, simulateRitual, NOISE, hearRadius, noiseBand, INVESTIGATE_EXTRA, NOISE_MEMORY, pathBetween, PHANTOM_NOTICE, PHANTOM_LOSE_AFTER, openings, neighbour, distancesFrom, stepToward, fewestSteps, sameCell, indexOf, opposite, DIRS } from './maze';
 export { proveMaze, proveRunLength } from './proof';
+export { ROOM_EVENTS, EVENT_CHANCE, EVENT_FLICKER_MAX_HZ, rollRoomEvent } from './events';
+export type { RoomEventDef, RoomEventEffect } from './events';
 export { exploreHouse, estimateRunMs, runLengthWords, lineMs, DEFAULT_RUN_LINES, RUN_BAND, RUN_PROFILES, RUN_SPEEDS, RUN_DWELLS } from './explorer';
 export type { ProveMazeOptions, RunLengthOptions } from './proof';
 export type { Exploration, ExploreOptions, RunLines, RunProfile } from './explorer';
 export { createWalk, walkResult, bearingFrom, resolveWalkSettings, DEFAULT_WALK_SETTINGS, NAV_EVENTS } from './walk';
-export type { Maze, MazeOptions, Cell, Dir, PhantomState, PhantomNews } from './maze';
+export type { Maze, MazeOptions, HouseLayout, Cell, Dir, PhantomState, PhantomNews, NoiseBand } from './maze';
 export type { Walk, WalkOptions, WalkSnapshot, WalkSettings, WalkSettingsInput } from './walk';

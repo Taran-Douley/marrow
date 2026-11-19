@@ -382,3 +382,18 @@ A second spec, written before any code: `.kiro/specs/marrow-advisor/` (requireme
 - **Three catches end a run**, with a one-press next run and a "Catches end a run" setting in the one-switch menu and on the page.
 - **Graphics**: warm lantern, fake shadows, fog, wainscoting, skirting, door frames, rug and wood detail, mist, vignette, a layered phantom glow. Flicker stays under 3 a second.
 - Not done: Stages 2 to 4 (told risks, noise tracking, room events, perks). Run lengths are estimates from a headless player; no real player has timed a run.
+
+## Ghastly Moves rhythm v2, stages 2 to 7 (tasks 10 to 13)
+
+- **Six more boss patterns** (`apps/ghastly-moves/src/patterns.ts`), one grammar for all: lobbed throws have a rising sine tell and an airy noise throw sound, rolled ones a low falling square rumble, swooped ones a falling triangle whistle. Bone Warden: bones/skulls, 6 volleys. Moss Witch: hexes/moss balls, 7. Gatekeeper: iron balls/maces/bolts, 7. Spider Miller: webs/mill wheels/spiderlings, 8. Hollow Wraith: wisps/knots/icicles, 8. Count Vexar: orbs/coffins/bats, 9. Each pair of kinds differs in timbre and by at least a major third for beeps, throw sounds and tells (property 22); proofs 15, 19, 20, 22, 23 pass on 250 seeds per boss (`test/bosses.test.ts`).
+- **Seen portal gate** (`drawPortalGate`): a gate at each portal with the new mode in words and a mark that differs by mode.
+- **Pulses**: a halo behind every obstacle and a pulse look per stage (`PULSE_LOOK`), at most `PULSE_MAX_ALPHA`, none with reduced motion.
+- **Best on the map**: "Best run 62%. Boss best 40%." on the map, in the stage list and in the scanning menu.
+- Not done: task 14 (real players, ears). Skeleton navigation tests (other worker's area) fail in this tree.
+
+## Séance Escape runs, length pass rate and stages 2 and 3 (spec seance-runs)
+
+- **Run length (207) fixed in the generator**: `generateMaze` takes `fit`, which lays the house out again until it passes. The game passes property 207 as `fit`, so the 5 to 8 minute band and the explorer are unchanged. 56 of 240 seeds passed before (118 too short, 66 too long); 240 of 240 pass 201 to 207 for all nine profiles now. Level Forge's `prove_house` with `runLength: true` lays out houses the same way.
+- **Risk and noise (stage 2)**: Listen, Search (new, once per room, very loud) and Hide say their noise and cost in the option label. Noise levels listen 0, hide 0, walk 1, run 2, search 3; the phantom hears level n within 2 + n rooms and hunts, hears up to 2 rooms farther and goes to look (`PhantomState.heard`, loudest recent noise). Noise meter in bars and words, sounded and spoken on a change of band; `ghost-step` and `ghost-heard` from the phantom's place in 3D. Property 205 plays the best route under every way of paying (any searches, every noisy event).
+- **Room events (stage 3)**: ten events rolled by house seed and room (`rollRoomEvent`), each with sound, caption and line; Fright softens the scary ones; the one picture effect is slow and still with reduced motion. A property over 200 seeds shows events never change the maze or the proofs.
+- Not done: Stage 4 (perks). At the old 6 by 6 proof-report size, 31 of 200 seeds now have no fair house (the game's sizes build every seed tried). No player has tried any of this.

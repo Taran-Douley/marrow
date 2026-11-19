@@ -53,8 +53,19 @@ describe('every run is a new house, proven before it is served', () => {
       expect(skips.some((s) => s.seed === served.seed)).toBe(false);
       counter = served.seed + 1;
     }
-    expect(skips.length).toBeGreaterThan(0);
+    // The generator lays a house out until it fits, so few are skipped now; any that is says why.
     for (const s of skips) expect(s.reason).toMatch(/^(207 Run length fits: House \d+: at |20[1-6] |Could not)/);
+  });
+
+  it('the generator fits the run length, so at least 80% of seeds are served as they come (every one, in practice), not skipped', () => {
+    let served = 0;
+    const SEEDS = 120;
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const skips: Skipped[] = [];
+      const house = serveHouse(seed, STANDARD_SIZE, (s) => skips.push(s))!;
+      if (house.seed === seed && skips.length === 0) served += 1;
+    }
+    expect(served / SEEDS).toBeGreaterThanOrEqual(0.8);
   });
 
   it('the next run is the next house: serving from the saved counter never repeats a house', () => {

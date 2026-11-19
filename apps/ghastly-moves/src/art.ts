@@ -72,6 +72,111 @@ export function withAlpha(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(1, alpha))})`;
 }
 
+/**
+ * The pulse look of each place: the colour its beat swells in, and where the swell shows besides the moon,
+ * the lantern and the obstacles. Every swell is `pulse` (0 to 1) times at most `PULSE_MAX_ALPHA` of opacity,
+ * so none changes the picture by more than the flash threshold, and there is none with reduced motion.
+ */
+export interface PulseLook {
+  colour: string;
+  glow: 'sky' | 'horizon' | 'ground';
+}
+
+export const PULSE_LOOK: Record<Scenery, PulseLook> = {
+  patch: { colour: '#ff9a2e', glow: 'ground' },
+  moon: { colour: '#9fb4ff', glow: 'horizon' },
+  woods: { colour: '#7ee081', glow: 'ground' },
+  gate: { colour: '#c9b3ff', glow: 'sky' },
+  hollow: { colour: '#e0a8ff', glow: 'horizon' },
+  mill: { colour: '#ffd27a', glow: 'ground' },
+  mist: { colour: '#b6c8da', glow: 'horizon' },
+  midnight: { colour: '#ff6b8a', glow: 'sky' },
+};
+
+/** A soft halo behind an obstacle that swells on the beat. Nothing is drawn when the pulse is 0. */
+export function drawObstacleGlow(ctx: CanvasRenderingContext2D, s: ArtState, x: number, y: number, r: number): void {
+  if (s.flat || s.pulse <= 0) return;
+  const colour = PULSE_LOOK[s.scenery].colour;
+  ctx.save();
+  ctx.fillStyle = radial(ctx, x, y, r * 0.2, r, [
+    { at: 0, colour: withAlpha(colour, s.pulse * PULSE_MAX_ALPHA) },
+    { at: 1, colour: withAlpha(colour, 0) },
+  ]);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+export interface PortalGateLook {
+  /** Where the portal is on the screen. */
+  x: number;
+  groundY: number;
+  move: 'jump' | 'flip' | 'switch';
+  /** The new mode in words: 'Flip mode'. */
+  label: string;
+  text: string;
+  panel: string;
+  line: string;
+  accent: string;
+  font: string;
+}
+
+/**
+ * A gate on the way where the move changes: two pillars, a lintel with the new mode in words, and a mark
+ * that differs by mode (an up arrow to jump, up and down arrows to flip, side arrows to switch lanes), so
+ * it is never colour alone. It is still: it only scrolls with the level, and nothing in it flashes.
+ */
+export function drawPortalGate(ctx: CanvasRenderingContext2D, g: PortalGateLook): void {
+  const top = g.groundY - 230;
+  const half = 46;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = g.panel;
+  ctx.strokeStyle = g.accent;
+  ctx.lineWidth = 3;
+  for (const side of [-1, 1]) {
+    ctx.fillRect(g.x + side * half - 7, top, 14, g.groundY - top);
+    ctx.strokeRect(g.x + side * half - 7, top, 14, g.groundY - top);
+  }
+  // The lintel, with the words on it.
+  ctx.fillRect(g.x - half - 7, top - 34, half * 2 + 14, 40);
+  ctx.strokeRect(g.x - half - 7, top - 34, half * 2 + 14, 40);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = g.text;
+  ctx.font = g.font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(g.label, g.x, top - 14, half * 2);
+  // The mark between the pillars.
+  ctx.strokeStyle = g.accent;
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
+  const cy = top + 60;
+  ctx.beginPath();
+  if (g.move === 'jump') {
+    ctx.moveTo(g.x - 16, cy + 8);
+    ctx.lineTo(g.x, cy - 10);
+    ctx.lineTo(g.x + 16, cy + 8);
+  } else if (g.move === 'flip') {
+    ctx.moveTo(g.x - 14, cy - 2);
+    ctx.lineTo(g.x, cy - 18);
+    ctx.lineTo(g.x + 14, cy - 2);
+    ctx.moveTo(g.x - 14, cy + 6);
+    ctx.lineTo(g.x, cy + 22);
+    ctx.lineTo(g.x + 14, cy + 6);
+  } else {
+    ctx.moveTo(g.x - 6, cy - 16);
+    ctx.lineTo(g.x - 20, cy - 8);
+    ctx.lineTo(g.x - 6, cy);
+    ctx.moveTo(g.x + 6, cy + 4);
+    ctx.lineTo(g.x + 20, cy + 12);
+    ctx.lineTo(g.x + 6, cy + 20);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
 export interface ArtState {
   scenery: Scenery;
   /** Level time in running seconds, for scrolling. */
@@ -95,6 +200,16 @@ export function drawSky(ctx: CanvasRenderingContext2D, s: ArtState): void {
   ctx.fillStyle = s.flat ? s.background : linear(ctx, 0, 0, 0, s.groundY, [{ at: 0, colour: top }, { at: 1, colour: horizon }]);
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   if (s.flat) return;
+  // This place's own swell on the beat: a wash over the sky or the horizon. It is never stronger than PULSE_MAX_ALPHA.
+  const look = PULSE_LOOK[s.scenery];
+  if (s.pulse > 0 && look.glow !== 'ground') {
+    const [from, to] = look.glow === 'sky' ? [0, s.groundY] : [s.groundY - 140, s.groundY];
+    ctx.fillStyle = linear(ctx, 0, from, 0, to, [
+      { at: 0, colour: withAlpha(look.colour, look.glow === 'sky' ? s.pulse * PULSE_MAX_ALPHA * 0.5 : 0) },
+      { at: 1, colour: withAlpha(look.colour, s.pulse * PULSE_MAX_ALPHA) },
+    ]);
+    ctx.fillRect(0, from, WIDTH, to - from);
+  }
   // Stars never twinkle: they are still.
   ctx.save();
   ctx.fillStyle = '#e8e4f4';
@@ -310,6 +425,11 @@ export function drawGround(ctx: CanvasRenderingContext2D, s: ArtState, colours: 
   const gy = s.groundY;
   ctx.fillStyle = s.flat ? colours.panel : linear(ctx, 0, gy, 0, HEIGHT, [{ at: 0, colour: colours.panel }, { at: 1, colour: '#0a0712' }]);
   ctx.fillRect(0, gy, WIDTH, HEIGHT - gy);
+  if (!s.flat && s.pulse > 0 && PULSE_LOOK[s.scenery].glow === 'ground') {
+    // This place's swell lights the ground just under the line.
+    ctx.fillStyle = withAlpha(PULSE_LOOK[s.scenery].colour, s.pulse * PULSE_MAX_ALPHA);
+    ctx.fillRect(0, gy, WIDTH, 40);
+  }
   if (!s.flat) {
     ctx.save();
     ctx.strokeStyle = withAlpha('#9d94b5', 0.22);

@@ -1,6 +1,6 @@
 import { themeFor, type Profile } from '@marrow/skeleton';
 import { drawSky } from './art';
-import type { Progress } from './progress';
+import type { Far, Progress } from './progress';
 import { STAGES } from './stages';
 
 // The story map and the item art. All original shapes drawn with canvas paths.
@@ -145,6 +145,8 @@ export interface MapState {
   /** The stage that will be played when the player presses. 0 for free practice. */
   selected: number;
   nowMs: number;
+  /** The furthest share passed in one clean stretch, per stage and boss. */
+  far?: Far;
 }
 
 /** The story map: a winding road with a node for each place. The next place is boxed and labelled "next". */
@@ -215,6 +217,14 @@ export function drawMap(ctx: CanvasRenderingContext2D, profile: Profile, state: 
     ctx.font = `${Math.round(13 * scale)}px ${FONT}`;
     const tag = done ? 'Boss beaten' : isNext ? 'NEXT' : s.rule;
     ctx.fillText(isSelected && !done && !isNext ? `${tag} (chosen)` : tag, x, y + 58, 130);
+    // The furthest you got here, and at the boss, in numbers (the same words the stage list and menu say).
+    const stageBest = state.far?.[String(s.id)];
+    const bossBest = state.far?.[`${s.id}b`];
+    const bests = [stageBest ? `Best ${stageBest}%` : '', bossBest ? `Boss ${bossBest}%` : ''].filter(Boolean).join('  ');
+    if (bests) {
+      ctx.fillStyle = theme.text;
+      ctx.fillText(bests, x, y + 76, 130);
+    }
   }
 
   // The items won, in a row, with their names.

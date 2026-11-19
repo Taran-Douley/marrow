@@ -3,6 +3,9 @@ import type { Speed } from '../types';
 import { DEFAULT_WALK_SETTINGS } from './walk';
 import { indexOf, neighbour, openings, opposite, pathBetween, sameCell, type Cell, type Dir, type Maze } from './maze';
 
+/** What the explorer needs of a house: the passages, rooms, relics, start and exit. */
+export type ExplorerMaze = Pick<Maze, 'width' | 'height' | 'open' | 'start' | 'exit' | 'rooms' | 'relics'>;
+
 // A headless explorer: a player who does not know the house. It walks room to room, depth first, takes
 // the relics it comes to (steering toward a hum it can hear), then goes for the bell by the shortest way.
 // It never listens, hides or asks for a hint, and it is never caught, so what it measures is a clean run.
@@ -80,7 +83,7 @@ const RELATIVE = [
 ] as const;
 
 /** Walk a house as a player who does not know it, and count the time. */
-export function exploreHouse(maze: Maze, options: ExploreOptions): Exploration {
+export function exploreHouse(maze: ExplorerMaze, options: ExploreOptions): Exploration {
   const lines: RunLines = { ...DEFAULT_RUN_LINES, ...options.lines };
   const reaction = options.reactionMs ?? 400;
   const first = options.firstStrideRatio ?? 0.6;
@@ -216,7 +219,7 @@ export function exploreHouse(maze: Maze, options: ExploreOptions): Exploration {
 }
 
 /** The estimated length of a clean run, in ms. */
-export const estimateRunMs = (maze: Maze, profile: RunProfile, lines?: Partial<RunLines>): number =>
+export const estimateRunMs = (maze: ExplorerMaze, profile: RunProfile, lines?: Partial<RunLines>): number =>
   exploreHouse(maze, lines ? { ...profile, lines } : profile).ms;
 
 /** A fair guess at how long a spoken line takes: the same rule the scanner uses, a little slower for different voices. */

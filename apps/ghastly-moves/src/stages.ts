@@ -1,5 +1,6 @@
 import type { Lesson, TrackSpec } from '@marrow/skeleton';
 import { PUMPKIN_PATTERN, type BossPattern } from './pattern';
+import { BONE_PATTERN, GATEKEEPER_PATTERN, MOSS_PATTERN, SPIDER_PATTERN, VEXAR_PATTERN, WRAITH_PATTERN } from './patterns';
 import { SONGS, type StageSong } from './songs';
 import { TRACKS, bossTrack } from './tracks';
 
@@ -182,6 +183,7 @@ export const STAGES: readonly Stage[] = [
       name: 'The Bone Warden',
       look: 'skeleton',
       projectile: { name: 'bone', label: 'bone', colour: '#efe8d8', shape: 'bone' },
+      pattern: BONE_PATTERN,
       taunt: 'The Bone Warden clacks his teeth. Count in fives, up to five hundred!',
       lesson: multiplesOf([5], [100, 500], 'Boss: The Bone Warden'),
       count: 12,
@@ -205,6 +207,7 @@ export const STAGES: readonly Stage[] = [
       name: 'The Moss Witch',
       look: 'witch',
       projectile: { name: 'hex', label: 'hex', colour: '#7ee081', shape: 'star' },
+      pattern: MOSS_PATTERN,
       taunt: 'The Moss Witch cackles. Her threes go up to a hundred and fifty!',
       lesson: multiplesOf([3], [30, 150], 'Boss: The Moss Witch'),
       count: 14,
@@ -228,6 +231,7 @@ export const STAGES: readonly Stage[] = [
       name: 'The Gatekeeper',
       look: 'knight',
       projectile: { name: 'iron-ball', label: 'iron ball', colour: '#b9bfd0', shape: 'round' },
+      pattern: GATEKEEPER_PATTERN,
       taunt: 'The Gatekeeper rattles his chains. Fours and sixes, bigger than ever!',
       lesson: multiplesOf([4, 6], [40, 168], 'Boss: The Gatekeeper'),
       count: 14,
@@ -251,6 +255,7 @@ export const STAGES: readonly Stage[] = [
       name: 'The Spider Miller',
       look: 'spider',
       projectile: { name: 'web-ball', label: 'web ball', colour: '#e9e2ff', shape: 'star' },
+      pattern: SPIDER_PATTERN,
       taunt: 'The Spider Miller spins a web of numbers. Squares up to two hundred and twenty five!',
       lesson: squareNumbers([1, 225], 'Boss: The Spider Miller'),
       count: 14,
@@ -274,6 +279,7 @@ export const STAGES: readonly Stage[] = [
       name: 'The Hollow Wraith',
       look: 'wraith',
       projectile: { name: 'wisp', label: 'wisp', colour: '#9fd8ff', shape: 'round' },
+      pattern: WRAITH_PATTERN,
       taunt: 'The Hollow Wraith drifts out of the tree. Sevens, all the way past a hundred!',
       lesson: multiplesOf([7], [50, 175], 'Boss: The Hollow Wraith'),
       count: 14,
@@ -297,6 +303,7 @@ export const STAGES: readonly Stage[] = [
       name: 'Count Vexar',
       look: 'vampire',
       projectile: { name: 'bat', label: 'bat', colour: '#c0392b', shape: 'bat' },
+      pattern: VEXAR_PATTERN,
       taunt: 'Count Vexar sweeps down the stairs. Primes up to a hundred. This is the last one!',
       lesson: primeNumbers([2, 100], 'Boss: Count Vexar'),
       count: 16,
@@ -319,8 +326,8 @@ export function bossPrompt(stage: Stage): string {
   const p = stage.boss.projectile.label;
   if (stage.boss.pattern) {
     // A pattern boss: say how to read it by ear, then what to jump.
-    const sounds = stage.boss.pattern.throws.map((t) => `${t.tell.hz >= 300 ? 'A rising sound' : 'A low rumble'} means ${t.label}s`);
-    return `Jump over every bomb with ${stage.ruleWords}. The others are duds: let them fly through you. Before each volley you hear what is coming. ${sounds.join('. ')}. Every right move hurts ${stage.boss.name}.`;
+    const sounds = stage.boss.pattern.throws.map((t) => `${t.heard} means ${t.plural}`);
+    return `Jump over every ${stage.boss.pattern.noun} with ${stage.ruleWords}. The others are duds: let them fly through you. Before each volley you hear what is coming. ${sounds.join('. ')}. Every right move hurts ${stage.boss.name}.`;
   }
   return `Jump over every ${p} with ${stage.ruleWords}. The others are duds: let them fly through you. Every right move hurts ${stage.boss.name}.`;
 }
