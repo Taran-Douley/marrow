@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { pulseAt, speechMs, wordsHoldMs, type Run, type SemanticEvent, type Speed } from '@marrow/skeleton';
+import { pulseAt, totalSpokenMs, wordsHoldMs, type Run, type SemanticEvent, type Speed } from '@marrow/skeleton';
 import { createGhastlyKit } from '../src/kit';
 import { PUMPKIN_PATTERN, bossTells, patternByEar, tellsClearOfCountdowns, volleysOf, type BossPattern } from '../src/pattern';
 import { farKey, parseFar, percentPassed, withFar } from '../src/progress';
@@ -59,7 +59,7 @@ describe('property 20: instant retry', () => {
         again.push(event.data?.again === true);
         // What the game does (main.ts): the first fall at an obstacle holds for its words; a repeat does not.
         if (event.data?.again !== true) {
-          const ms = kit.render(event, profile).reduce((sum, c) => sum + (c.channel === 'speech' ? speechMs(c.text) : 0), 0);
+          const ms = totalSpokenMs(kit.render(event, profile));
           run.holdForWords(clock, wordsHoldMs(ms));
         }
       },

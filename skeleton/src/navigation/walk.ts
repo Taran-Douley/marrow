@@ -4,6 +4,7 @@ import { rankOf } from '../run';
 import { createScanner, type ScanOption, type Scanner } from '../scanning';
 import type { SemanticEvent, Speed } from '../types';
 import { rollRoomEvent } from './events';
+import { perkNoise, type PerkId } from './perks';
 import {
   distancesFrom,
   fewestSteps,
@@ -107,6 +108,9 @@ export interface WalkSettings {
   searchLabel: string;
   hideLabel: string;
   hintLabel: string;
+  /** The same two, while a perk makes the first one free. They say so before it is chosen. */
+  freeListenLabel: string;
+  freeHintLabel: string;
   comeOutLabel: string;
   /** The phantom's steps are sounded from where it is when it moves within this many rooms. */
   ghostStepsHeard: number;
@@ -142,6 +146,8 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   searchLabel: 'Search: very loud, the phantom moves once',
   hideLabel: 'Hide: no noise, you wait, and it may search here',
   hintLabel: 'Ask for a hint: the phantom moves once',
+  freeListenLabel: 'Listen: free this once, no noise, the phantom does not move',
+  freeHintLabel: 'Ask for a hint: free this once, the phantom does not move',
   comeOutLabel: 'Come out',
   ghostStepsHeard: 4,
 };
@@ -160,6 +166,11 @@ export interface WalkOptions {
   maze: Maze;
   speed: Speed;
   settings?: WalkSettingsInput;
+  /**
+   * The perk in force for this run, if any (see perks.ts). It only lowers a cost or adds help; it never changes the maze
+   * or any timing.
+   */
+  perk?: PerkId | null;
   /** Real clock time, in ms, when the walk begins. */
   startMs: number;
   /**
@@ -211,6 +222,10 @@ export interface WalkSnapshot {
   /** The noise you are making now, 0 to 3, and its band. */
   noise: number;
   noiseBand: NoiseBand;
+  /** The perk in force this run, or null. */
+  perk: PerkId | null;
+  /** What the perk has already given: a free Listen, a free hint, or the catch that did not count. */
+  perkUsed: { listen: boolean; hint: boolean; catch: boolean };
 }
 
 export interface Walk {
@@ -251,6 +266,10 @@ export function createWalk(options: WalkOptions): Walk {
   const roomIndex = new Map(maze.rooms.map((r, i) => [indexOf(maze, r), i]));
   const hideAt = new Set(maze.hides.map((h) => indexOf(maze, h)));
   const ritualHouse = maze.relics.length > 0;
+  const perk: PerkId | null = options.perk ?? null;
+  /** A noise as the perk (soft steps) leaves it. */
+  const quiet = (level: number): number => perkNoise(perk, level);
+  const perkUsed = { listen: false, hint: false, catch: false };
 
   const initial = openings(maze, maze.start)[0]!;
   let cell = maze.start;
@@ -398,12 +417,15 @@ export function createWalk(options: WalkOptions): Walk {
   };
 
   const caught = (nowMs: number): void => {
-    catches += 1;
+    // Second chance: the first catch is told and you are put back as always, but it does not count.
+    const forgiven = perk === 'second-chance' && !perkUsed.catch;
+    if (forgiven) perkUsed.catch = true;
+    else catches += 1;
     phase = 'caught';
     scanner = null;
     optionsNow = [];
     resumeAt = nowMs + settings.catchPauseMs;
-    send(NAV_EVENTS.caught, { catches }, nowMs);
+    send(NAV_EVENTS.caught, { catches, ...(forgiven ? { forgiven: true } : {}) }, nowMs);
   };
 
   /** One turn of the phantom. Returns true if it caught the player. */
@@ -412,7 +434,7 @@ export function createWalk(options: WalkOptions): Walk {
     const turn = phantomTurn(maze, phantom, cell, {
       hidden: how.hidden === true,
       chasing,
-      noise: how.noise ?? (chasing ? NOISE.run : NOISE.walk),
+      noise: quiet(how.noise ?? (chasing ? NOISE.run : NOISE.walk)),
       ...(how.force ? { force: true } : {}),
     });
     phantom = turn.state;
@@ -443,7 +465,10 @@ export function createWalk(options: WalkOptions): Walk {
     const nearest = left.map((r) => bearing(r)).sort((a, b) => a.rooms - b.rooms)[0];
     const relicLine = nearest ? ` The nearest relic hums ${word(nearest)}.` : '';
     const lead = Math.max(0, busyUntil - nowMs) / 1000; // after anything still being said
-    send(NAV_EVENTS.listen, { summary: `The phantom is ${word(g)}. The bell is ${word(e)}.${relicLine}` }, nowMs, lead);
+    // A free look: the perk pays the turn this Listen would have cost, once.
+    const free = costsAStep && perk === 'free-ask' && !perkUsed.listen;
+    if (free) perkUsed.listen = true;
+    send(NAV_EVENTS.listen, { summary: `The phantom is ${word(g)}. The bell is ${word(e)}.${relicLine}${free ? ' That cost no turn.' : ''}`, ...(free ? { free: true } : {}) }, nowMs, lead);
     if (g.rooms <= settings.listenRange) {
       send(NAV_EVENTS.ghostSense, { angle: g.angle, distance: Math.min(1, g.rooms / settings.listenRange) }, nowMs, lead + 0.2);
     }
@@ -455,7 +480,7 @@ export function createWalk(options: WalkOptions): Walk {
     }
     spokeThisLeg = true;
     // Holding your breath to listen costs time where you stand: the phantom moves.
-    if (costsAStep) phantomMoves(nowMs, { force: true, noise: NOISE.listen });
+    if (costsAStep && !free) phantomMoves(nowMs, { force: true, noise: NOISE.listen });
   };
 
   /** Which way leads to the nearest relic (or, once they are all found, to the exit). */
@@ -472,8 +497,11 @@ export function createWalk(options: WalkOptions): Walk {
   /** A hint, asked for. */
   const hint = (nowMs: number, free = false): void => {
     if (!free) hints += 1;
-    sendAfter(NAV_EVENTS.hint, { ...hintData(), ...(free ? { free: true } : {}) }, nowMs);
-    if (free) return; // a hint given after a catch costs nothing: the phantom does not move
+    // A free look (perk): the first hint you ask for costs no turn either.
+    const byPerk = !free && perk === 'free-ask' && !perkUsed.hint;
+    if (byPerk) perkUsed.hint = true;
+    sendAfter(NAV_EVENTS.hint, { ...hintData(), ...(free ? { free: true } : {}), ...(byPerk ? { perk: true } : {}) }, nowMs);
+    if (free || byPerk) return; // a hint given after a catch, or paid for by the perk, costs nothing: the phantom does not move
     spokeThisLeg = true;
     phantomMoves(nowMs, { force: true, noise: NOISE.walk });
   };
@@ -494,7 +522,7 @@ export function createWalk(options: WalkOptions): Walk {
       const g = bearing(phantom.at);
       data = { result, angle: g.angle, rooms: Math.round(g.rooms), near: g.rooms <= settings.listenRange };
     }
-    setMeter(NOISE.search, nowMs);
+    setMeter(quiet(NOISE.search), nowMs);
     sendAfter(NAV_EVENTS.search, data, nowMs);
     spokeThisLeg = true;
     phantomMoves(nowMs, { force: true, noise: NOISE.search });
@@ -507,10 +535,11 @@ export function createWalk(options: WalkOptions): Walk {
       const d = ((facing + rel) % 4) as Dir;
       return ways.includes(d) ? [{ id: `dir:${d}`, label, angle }] : [];
     });
-    choices.push({ id: 'listen', label: settings.listenLabel });
+    const freeLook = perk === 'free-ask';
+    choices.push({ id: 'listen', label: freeLook && !perkUsed.listen ? settings.freeListenLabel : settings.listenLabel });
     if (ritualHouse && !chasing && !searched.has(indexOf(maze, cell))) choices.push({ id: 'search', label: settings.searchLabel });
     if (hideAt.has(indexOf(maze, cell)) && !chasing) choices.push({ id: 'hide', label: settings.hideLabel });
-    if (ritualHouse) choices.push({ id: 'hint', label: settings.hintLabel });
+    if (ritualHouse) choices.push({ id: 'hint', label: freeLook && !perkUsed.hint ? settings.freeHintLabel : settings.hintLabel });
     return choices;
   };
 
@@ -539,8 +568,8 @@ export function createWalk(options: WalkOptions): Walk {
     sendAfter(NAV_EVENTS.roomEvent, data, nowMs);
     if (event.effect.kind === 'noise') {
       // A noise the phantom may hear: it pulls the phantom toward this room (see phantomHears).
-      setMeter(event.effect.level, nowMs);
-      const heard = phantomHears(maze, phantom, cell, event.effect.level, true);
+      setMeter(quiet(event.effect.level), nowMs);
+      const heard = phantomHears(maze, phantom, cell, quiet(event.effect.level), true);
       phantom = heard.state;
       share(heard.news, nowMs);
     }
@@ -598,7 +627,7 @@ export function createWalk(options: WalkOptions): Walk {
     cell = neighbour(cell, facing);
     steps += 1;
     // A loud thing dies away a turn at a time; your steps are quiet, and running from the phantom is louder.
-    setMeter(Math.max(chasing ? NOISE.run : NOISE.walk, meter - 1), nowMs);
+    setMeter(Math.max(quiet(chasing ? NOISE.run : NOISE.walk), meter - 1), nowMs);
     send(NAV_EVENTS.step, { steps }, nowMs);
     if (sameCell(cell, phantom.at)) return caught(nowMs);
     if (phantomMoves(nowMs)) return;
@@ -611,7 +640,7 @@ export function createWalk(options: WalkOptions): Walk {
     cell = junction?.cell ?? maze.start;
     facing = junction?.facing ?? initial;
     phantom = phantomStart(maze);
-    setMeter(NOISE.walk, nowMs);
+    setMeter(quiet(NOISE.walk), nowMs);
     spokeThisLeg = false;
     if (junction === null) steps = 0; // caught before the first choice: begin the house again
     // A player caught again and again is lost: point the way, for free, before the choices.
@@ -679,7 +708,8 @@ export function createWalk(options: WalkOptions): Walk {
         else hint(nowMs);
         if (phase === 'choosing' || phase === 'hidden') {
           // Hear the whole answer first, then read the options again from the top (a searched room no longer offers Search).
-          offer(chosen.id === 'search' && phase === 'choosing' ? choicesHere() : [...optionsNow], nowMs);
+          // A searched room no longer offers Search, and a free Listen or hint that was used is priced again.
+          offer(phase === 'choosing' ? choicesHere() : [...optionsNow], nowMs);
         }
         return;
       }
@@ -733,6 +763,8 @@ export function createWalk(options: WalkOptions): Walk {
       events: eventsSeen,
       noise: meter,
       noiseBand: meterBand,
+      perk,
+      perkUsed: { ...perkUsed },
     }),
   };
 }

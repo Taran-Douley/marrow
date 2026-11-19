@@ -397,3 +397,17 @@ A second spec, written before any code: `.kiro/specs/marrow-advisor/` (requireme
 - **Risk and noise (stage 2)**: Listen, Search (new, once per room, very loud) and Hide say their noise and cost in the option label. Noise levels listen 0, hide 0, walk 1, run 2, search 3; the phantom hears level n within 2 + n rooms and hunts, hears up to 2 rooms farther and goes to look (`PhantomState.heard`, loudest recent noise). Noise meter in bars and words, sounded and spoken on a change of band; `ghost-step` and `ghost-heard` from the phantom's place in 3D. Property 205 plays the best route under every way of paying (any searches, every noisy event).
 - **Room events (stage 3)**: ten events rolled by house seed and room (`rollRoomEvent`), each with sound, caption and line; Fright softens the scary ones; the one picture effect is slow and still with reduced motion. A property over 200 seeds shows events never change the maze or the proofs.
 - Not done: Stage 4 (perks). At the old 6 by 6 proof-report size, 31 of 200 seeds now have no fair house (the game's sizes build every seed tried). No player has tried any of this.
+
+## 2026-11-19 - Character voices (spec simple-and-voices, task 2)
+
+- **Spec first.** Requirements in EARS for all 8 items, then design and tasks in the order 2, 3, 4, 1, 5, 6, 7, 8, with a stop for eyes-closed play after tasks 2 and 1.
+- **Characters.** A `characters` table in the kit and `speaker` on an event (`also` for later lines by other speakers). Each has a name, preferred browser voices, pitch, rate, position and a signature under 300 ms, played just before each line. Captions and the aria-live text read "Name: line". With the built-in voice off the signature still plays; with one system voice, pitch, rate, signature and name still tell characters apart. No effect is put on the words.
+- **Time.** The signature and an 80 ms pause are in every speech estimate (`spokenMs`, `totalSpokenMs`). Ghastly signatures never sit in a countdown: only a boss taunt has one, after a stage.
+- **Limits.** The browser voice cannot be panned, so position places the signature only. Mixed-speaker room lines in Seance are still narrator lines. Not tried by a player.
+
+
+## 2026-11-19 - Relic perks (spec seance-runs, Stage 4)
+
+- **Perks.** Three, one per relic: Soft steps (Silver Candle), A free look (Locket), Second chance (Planchette). Mechanics in `skeleton/src/navigation/perks.ts` and `walk.ts`; words, the relic table and the saved choice (`seance.perk`, read once then cleared, so it lasts one run) in `apps/seance-escape/src/perks.ts`. The choice after a run is a scanned list, no time limit, one switch.
+- **Proof.** 205 is played with no perk and with each perk (`simulateRitual({ perk })`). The default `simulateRitual` is the worst of no perk and soft steps, so the generator places the phantom to be fair under both. 207 is also judged with the perk's start line said.
+- **Limits.** The perk start line (about 3 to 5 s) is real speech, so a house must fit 5 to 8 minutes with and without it. "Only helps" is shown by tests on noise levels and on each perk's costs, not by a proof that every play is easier. Not tried by a player.

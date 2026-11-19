@@ -1,6 +1,7 @@
 import { createInput } from '../../input';
 import { withOsPreferences, type OsPreferences } from '../../profile';
-import type { OutputCommand, Profile, SpeechTone } from '../../types';
+import { SIGNATURE_GAP_MS } from '../../speech';
+import type { OutputCommand, Profile, SpeakerView, SpeechTone } from '../../types';
 
 /** Browsers accept pitch and rate from 0.1 to 2 or so; stay well inside. */
 const clampTone = (v: number): number => Math.max(0.5, Math.min(2, v));
@@ -51,7 +52,7 @@ export interface WebAdapterOptions {
   target?: EventTargetLike;
   audioContext?: AudioContextLike;
   synth?: SynthLike;
-  makeUtterance?: (text: string, volume: number, tone?: SpeechTone) => unknown;
+  makeUtterance?: (text: string, volume: number, tone?: SpeechTone, voices?: readonly string[]) => unknown;
   storage?: StorageLike;
   storageKey?: string;
   getPads?: () => readonly (GamepadLike & RumblePadLike | null)[];
@@ -155,10 +156,12 @@ export function createWebAdapter(options: WebAdapterOptions): WebAdapter {
     synth,
     makeUtterance:
       options.makeUtterance ??
-      ((text, volume, tone) => {
+      ((text, volume, tone, voices) => {
         const u = new SpeechSynthesisUtterance(text);
         u.volume = volume;
-        const prefs = options.voice?.browser ?? {};
+        const own = options.voice?.browser ?? {};
+        // A character's preferred voices come first; the game's choice and the best voice follow.
+        const prefs: BrowserVoiceOptions = voices ? { ...own, names: [...voices, ...(own.names ?? [])] } : own;
         // Most browsers ship a plain robotic voice and a natural one. Take the natural one.
         const installed = speechSynthesis.getVoices?.() ?? [];
         const best = chooseVoice(installed, prefs, typeof navigator !== 'undefined' ? navigator.language : 'en');
@@ -170,8 +173,8 @@ export function createWebAdapter(options: WebAdapterOptions): WebAdapter {
         if (prefs.rate !== undefined) u.rate = prefs.rate;
         if (prefs.pitch !== undefined) u.pitch = prefs.pitch;
         // A character's voice is relative to the player's chosen voice.
-        if (tone?.rate !== undefined) u.rate = clampTone((prefs.rate ?? 1) * tone.rate);
-        if (tone?.pitch !== undefined) u.pitch = clampTone((prefs.pitch ?? 1) * tone.pitch);
+        if (tone?.rate !== undefined) u.rate = clampTone((own.rate ?? 1) * tone.rate);
+        if (tone?.pitch !== undefined) u.pitch = clampTone((own.pitch ?? 1) * tone.pitch);
         return u;
       }),
     provider: options.voice?.provider,
@@ -209,6 +212,31 @@ export function createWebAdapter(options: WebAdapterOptions): WebAdapter {
     pending.add(handle);
   };
 
+  /** The sound a character makes before a line, played when it is the line's turn, through Web Audio so it can be placed. */
+  const signatureOf = (who: SpeakerView, profile: Profile, rate: number): (() => number) | undefined => {
+    const sig = who.signature;
+    if (!sig) return undefined;
+    return () => {
+      getAudio()?.play(
+        {
+          channel: 'sound',
+          senses: ['hearing'],
+          at: 0,
+          role: 'effect',
+          hz: sig.hz,
+          wave: sig.wave,
+          gain: (sig.gain ?? 0.5) * profile.volume.speech,
+          pan: profile.mono ? 0 : who.pan,
+          shape: { seconds: sig.ms / 1000, ...(sig.hzTo !== undefined ? { hzTo: sig.hzTo } : {}) },
+        },
+        0,
+        profile.mono,
+        rate,
+      );
+      return Math.round(sig.ms) + SIGNATURE_GAP_MS;
+    };
+  };
+
   let unbind: (() => void) | undefined;
 
   return {
@@ -221,7 +249,21 @@ export function createWebAdapter(options: WebAdapterOptions): WebAdapter {
             break;
           case 'speech':
             later(delayMs, () =>
-              speaker.say(cmd.text, { aloud: profile.voice, volume: profile.volume.speech, mode: cmd.mode, key: cmd.key, tone: cmd.tone }),
+              speaker.say(cmd.text, {
+                aloud: profile.voice,
+                volume: profile.volume.speech,
+                mode: cmd.mode,
+                key: cmd.key,
+                tone: cmd.tone,
+                ...(cmd.speaker
+                  ? {
+                      voices: cmd.speaker.voices,
+                      pan: profile.mono ? 0 : cmd.speaker.pan,
+                      name: cmd.speaker.name,
+                      before: signatureOf(cmd.speaker, profile, timing.rate),
+                    }
+                  : {}),
+              }),
             );
             break;
           case 'captions':

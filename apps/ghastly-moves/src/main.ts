@@ -9,7 +9,7 @@ import {
   type MenuEntry,
   createSessionLog,
   mergeProfile,
-  speechMs,
+  totalSpokenMs,
   wordsHoldMs,
   type Attempt,
   type Kit,
@@ -305,7 +305,8 @@ function bossReacts(event: SemanticEvent, now: number): void {
 
 /** How long an event's words take to say, with a little to spare, because voices differ in speed. */
 function wordsMs(event: SemanticEvent): number {
-  const ms = kit.render(event, profile).reduce((sum, c) => sum + (c.channel === 'speech' ? speechMs(c.text) : 0), 0);
+  // Words plus any boss's signature sound before them.
+  const ms = totalSpokenMs(kit.render(event, profile));
   return wordsHoldMs(ms);
 }
 

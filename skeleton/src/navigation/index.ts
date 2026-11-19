@@ -8,3 +8,5 @@ export type { Exploration, ExploreOptions, RunLines, RunProfile } from './explor
 export { createWalk, walkResult, bearingFrom, resolveWalkSettings, DEFAULT_WALK_SETTINGS, NAV_EVENTS } from './walk';
 export type { Maze, MazeOptions, HouseLayout, Cell, Dir, PhantomState, PhantomNews, NoiseBand } from './maze';
 export type { Walk, WalkOptions, WalkSnapshot, WalkSettings, WalkSettingsInput } from './walk';
+export { PERK_IDS, PHANTOM_PERKS, isPerkId, perkNoise } from './perks';
+export type { PerkId } from './perks';

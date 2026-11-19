@@ -69,11 +69,11 @@ R6.1 WHEN the player enters a room, THE SYSTEM SHALL roll a random room event fr
 R6.2 EACH room event SHALL have a sound, a caption and a spoken line, and SHALL NOT take a sense away or require quicker timing.
 R6.3 THE SYSTEM SHALL keep every event's effect inside what the proof allows (R8).
 
-## Requirement R7: Relics carry over (designed, not built)
+## Requirement R7: Relics carry over (built)
 
 R7.1 WHEN a run ends, THE SYSTEM SHALL grant one perk for the next run for the relics found, chosen by the player by scanning.
 R7.2 THE SYSTEM SHALL offer the choice with one switch and with no time limit.
-R7.3 A perk SHALL help (for example, a quieter step, one free hint, a longer hiding time) and SHALL never be needed to finish a house.
+R7.3 A perk SHALL help (a quieter step, a free Listen and hint, a first catch that does not count) and SHALL never be needed to finish a house. It SHALL apply to the next run only, and the run SHALL say which perk is on.
 
 ## Requirement R8: Every house passes the proof for every profile
 

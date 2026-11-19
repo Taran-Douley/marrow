@@ -26,6 +26,7 @@ import {
   type ProofResult,
 } from '../proof';
 import { defaultProfile, mergeProfile } from '../profile';
+import { validateCharacters } from '../speech';
 import {
   createRegistry,
   type ObjectDef,
@@ -41,6 +42,7 @@ import { generateSong, validateSong, type Song } from '../song';
 import type {
   Channel,
   ChannelId,
+  Character,
   EventPresentation,
   OutputCommand,
   Profile,
@@ -66,6 +68,12 @@ export interface KitConfig {
   defaults?: ProfilePatch;
   /** Your own game events, and how each is presented. */
   events?: Record<string, EventPresentation>;
+  /**
+   * Your speaking characters, by id: `{ narrator: {}, mabel: { name: 'Mabel', pitch: 1.3, signature: {...} } }`.
+   * Name one on an event with `speaker: 'mabel'`. Lines that name no speaker are the narrator's, which
+   * is the character called 'narrator'. Each character is refused if its signature is 300 ms or longer.
+   */
+  characters?: Readonly<Record<string, Character>>;
   /** Swap a built-in channel for yours, or leave one out. */
   channels?: { omit?: readonly ChannelId[]; replace?: Partial<Record<ChannelId, Channel>> };
   /** Your own minimum take-off window per speed, in ms. */
@@ -126,6 +134,8 @@ export interface Kit {
   readonly timing: Timing;
   readonly registry: Registry;
   readonly events: EventRegistry;
+  /** The speaking characters the game declared, by id. Empty when it declared none. */
+  readonly characters: Readonly<Record<string, Character>>;
   readonly channels: readonly Channel[];
   /** A fresh profile for a new player, with your defaults applied. */
   newProfile(): Profile;
@@ -171,12 +181,23 @@ export function createKit(config: KitConfig = {}): Kit {
     ...(config.haptics ? { haptics: config.haptics } : {}),
   });
 
+  const characters = config.characters ?? {};
+  validateCharacters(characters);
   const events = createEventRegistry();
-  for (const [type, presentation] of Object.entries(config.events ?? {})) events.define(type, presentation);
+  for (const [type, presentation] of Object.entries(config.events ?? {})) {
+    // A speaker that is not declared is a mistake to hear about now, not a silent narrator later.
+    for (const who of [presentation.speaker, ...(presentation.also ?? []).map((p) => p.speaker)]) {
+      if (who !== undefined && !who.includes('{') && !characters[who]) {
+        throw new Error(`Event '${type}' names the speaker '${who}', but no character has that id. Add it to \`characters\`.`);
+      }
+    }
+    events.define(type, presentation);
+  }
 
   const channels = createChannels(registry, {
     strings,
     events,
+    characters,
     ...(config.channels?.omit ? { omit: config.channels.omit } : {}),
     ...(config.channels?.replace ? { replace: config.channels.replace } : {}),
     // A track keeps time with the countdown: one slot is half a beat, unless the game says otherwise.
@@ -214,6 +235,7 @@ export function createKit(config: KitConfig = {}): Kit {
     timing,
     registry,
     events,
+    characters,
     channels,
     newProfile,
     defineObstacle: (name, options) => registry.define(name, options),
@@ -346,6 +368,7 @@ export function createKit(config: KitConfig = {}): Kit {
       }
       for (const [type, presentation] of Object.entries(config.events ?? {})) {
         if (presentation.say) add(presentation.say.charAt(0).toUpperCase() + presentation.say.slice(1), `event '${type}'`);
+        for (const part of presentation.also ?? []) add(part.say.charAt(0).toUpperCase() + part.say.slice(1), `event '${type}', said by ${part.speaker ?? 'the narrator'}`);
       }
       return [...lines.values()];
     },

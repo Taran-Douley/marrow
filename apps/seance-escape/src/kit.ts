@@ -1,4 +1,4 @@
-import { createKit, type EventPresentation, type Kit, type TrackSpec } from '@marrow/skeleton';
+import { createKit, type Character, type EventPresentation, type Kit, type TrackSpec } from '@marrow/skeleton';
 import { GHOST_HEARD, NOISE_WORDS, RELICS, ROOM_EVENT_STYLES, ROOM_STYLES, type RoomKind } from './content';
 
 /**
@@ -35,6 +35,23 @@ export const CHASE_TRACK: TrackSpec = {
 
 /** Mabel speaks a little higher than the narrator, so you know who is talking. */
 export const MABEL_VOICE = { pitch: 1.3, rate: 1.02 };
+
+/**
+ * Who speaks. The narrator is the house itself: it has no name and no signature, so its lines are
+ * the plain ones. Mabel has a name in the captions and the live text, a higher and a slightly quicker
+ * voice, and a soft two-note chime on the left before each of her lines. With one system voice or
+ * with the built-in voice off, her name and her chime still tell her apart.
+ */
+export const SEANCE_CHARACTERS = {
+  narrator: { voices: [], pitch: 1, rate: 1, pan: 0 },
+  mabel: {
+    name: 'Mabel',
+    voices: ['Libby', 'Sonia', 'Hazel', 'Jenny', 'Aria', 'Samantha', 'Google UK English Female'],
+    ...MABEL_VOICE,
+    pan: -0.5,
+    signature: { hz: 880, hzTo: 1175, wave: 'sine', ms: 180, gain: 0.5 },
+  },
+} as const satisfies Record<string, Character>;
 
 /** How frightening the game is. "gentle" softens the stings; "off" removes them. Information is never removed. */
 export type Fright = 'full' | 'gentle' | 'off';
@@ -106,11 +123,12 @@ export function createSeanceKit(options: SeanceKitOptions = {}): Kit {
   };
 
   return createKit({
+    characters: SEANCE_CHARACTERS,
     audio: { keyHz: 55, track: options.chase ? CHASE_TRACK : HOUSE_TRACK },
     events: {
       intro: {
         say: '{line}',
-        voice: MABEL_VOICE,
+        speaker: 'mabel',
         caption: 'Find three relics. Ring the bell. Get out.',
       },
       menu: {
@@ -157,21 +175,21 @@ export function createSeanceKit(options: SeanceKitOptions = {}): Kit {
       },
       'walk-room': { say: '{line}', caption: '{caption}' },
       'walk-relic': {
-        say: 'Mabel: {line}',
-        voice: MABEL_VOICE,
+        say: '{line}',
+        speaker: 'mabel',
         caption: '{relic} found: {found} of {total}',
         sound: { hz: 523, wave: 'sine', gain: 0.8, role: 'reward', shape: { hzTo: 1047, seconds: 1.0 } },
         haptic: [60, 40, 60, 40, 120],
       },
       'walk-ritual': {
-        say: 'Mabel: {line}',
-        voice: MABEL_VOICE,
+        say: '{line}',
+        speaker: 'mabel',
         caption: 'Ritual complete! Run to the bell!',
         sound: scare(fright, { hz: 196, wave: 'square', gain: 0.9, role: 'effect', shape: { hzTo: 98, filterHz: 2600, filterTo: 400, seconds: 1.4 } }),
         haptic: [200, 60, 200, 60, 400],
       },
-      'walk-sealed': { say: '{line}', voice: MABEL_VOICE, caption: 'Sealed. {left} relics to find.', haptic: [60, 60, 60] },
-      'walk-hint': { say: 'Mabel: {line}', voice: MABEL_VOICE, caption: 'Mabel: {line}' },
+      'walk-sealed': { say: '{line}', speaker: 'mabel', caption: 'Sealed. {left} relics to find.', haptic: [60, 60, 60] },
+      'walk-hint': { say: '{line}', speaker: 'mabel', caption: '{line}' },
       'walk-hide': {
         say: 'You hide in the wardrobe. Hold your breath.',
         caption: 'Hiding. Hold your breath.',

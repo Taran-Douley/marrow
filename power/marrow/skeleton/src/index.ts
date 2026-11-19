@@ -10,6 +10,20 @@ export { EVENT_TYPES } from './channels';
 export { themeFor, contrastRatio } from './theme';
 export { mergeProfile } from './profile';
 export { createScanner, scanningAudible, speechMs, dwellFor } from './scanning';
+export {
+  NARRATOR,
+  SIGNATURE_GAP_MS,
+  SIGNATURE_LIMIT_MS,
+  charactersTooAlike,
+  differences,
+  labelled,
+  signatureLeadMs,
+  signaturesOutsideWindows,
+  spokenMs,
+  totalSpokenMs,
+  validateCharacters,
+} from './speech';
+export type { Difference } from './speech';
 export type { Scanner, ScanOption, ScannerOptions } from './scanning';
 export {
   generateMaze,
@@ -49,7 +63,12 @@ export {
   RUN_PROFILES,
   RUN_SPEEDS,
   RUN_DWELLS,
+  PERK_IDS,
+  PHANTOM_PERKS,
+  isPerkId,
+  perkNoise,
 } from './navigation';
+export type { PerkId } from './navigation';
 export type { RoomEventDef, RoomEventEffect, NoiseBand, PhantomState, PhantomNews, ProveMazeOptions, RunLengthOptions, Exploration, ExploreOptions, RunLines, RunProfile } from './navigation';
 export type { Maze, MazeOptions, HouseLayout, Cell, Dir, Walk, WalkOptions, WalkSnapshot, WalkSettings, WalkSettingsInput } from './navigation';
 export {
@@ -90,4 +109,5 @@ export type { ProofResult, ProofProperty } from './proof';
 export type { Attempt, SessionLog } from './log';
 export type { Run, RunSnapshot } from './run';
 export type { ThemeTokens } from './theme';
+export type { Character, Signature, SpeakerView } from './types';
 export type { ChannelId, Profile, ProfilePatch, SemanticEvent, OutputCommand, EventPresentation, Speed, SoundShape, SpeechMode, SpeechTone, AnnounceLevel, Priority, Wave } from './types';

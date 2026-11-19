@@ -1,4 +1,5 @@
-import { generateMaze, proveMaze, proveRunLength, runLengthWords, type HouseLayout, type Maze } from '@marrow/skeleton';
+import { DEFAULT_RUN_LINES, generateMaze, proveMaze, proveRunLength, runLengthWords, type HouseLayout, type Maze } from '@marrow/skeleton';
+import { PERK_START_MS, perkOffer } from './perks';
 
 // The run loop, kept apart from the page so it can be tested without a screen: which house a run
 // gets, how a run ends, and what is said about it. See .kiro/specs/seance-runs.
@@ -21,7 +22,13 @@ export const CATCH_LIMIT = 3;
 export const MAX_SEED_TRIES = 400;
 
 /** The generator's test of a layout: a clean run takes 5 to 8 minutes at every speed and dwell (property 207). */
-const fitsRunLength = (house: HouseLayout): boolean => proveRunLength(house, '').pass;
+const fitsRunLength = (house: HouseLayout): boolean => proveRunLength(house, '').pass && proveRunLength(house, '', PERK_RUN_LINES).pass;
+
+/**
+ * A run with a perk on says one more line at its start (perk.ts, `perkStartLine`). A perk never changes the timing
+ * model, but the line is real speech, so a house must fit 5 to 8 minutes both without it and with the longest one said.
+ */
+export const PERK_RUN_LINES = { lines: { intro: DEFAULT_RUN_LINES.intro + PERK_START_MS } } as const;
 
 export interface Skipped {
   seed: number;
@@ -59,7 +66,10 @@ export function serveHouse(firstSeed: number, size: Size, onSkip: (skip: Skipped
       onSkip(skip);
       continue;
     }
-    const failing = proveMaze(maze, `House ${seed}`, lengthProven ? { runLength: true } : {}).filter((r) => !r.pass);
+    // 201 to 206 are judged with no perk and with every perk (205 plays each); 207 with and without the perk line said.
+    const proof = proveMaze(maze, `House ${seed}`, lengthProven ? { runLength: true } : {});
+    if (lengthProven) proof.push(proveRunLength(maze, `House ${seed} with a perk`, PERK_RUN_LINES));
+    const failing = proof.filter((r) => !r.pass);
     if (failing.length > 0) {
       const skip = { seed, reason: `${failing[0]!.id} ${failing[0]!.name}: ${failing[0]!.counterexample ?? 'failed'}` };
       skipped.push(skip);
@@ -109,7 +119,7 @@ export function runFacts(end: RunEnd): string {
  * house is one press away. It never says "game over".
  */
 export function caughtEndLine(end: RunEnd): string {
-  return `The house lets you go. ${runFacts(end)} Press any key to enter a new house, or Escape for the menu.`;
+  return `The house lets you go. ${runFacts(end)} ${perkOffer(end.relicsFound)} Press any key to enter a new house, or Escape for the menu.`;
 }
 
 export function caughtEndCaption(end: RunEnd): string {

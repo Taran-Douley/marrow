@@ -1,6 +1,6 @@
 # Tasks: Séance Escape runs
 
-Stages 1 to 3 are built (run loop, risk and noise, room events). Stage 4 is not started. Nothing has been tried by a player other than the author.
+Stages 1 to 3 are built (run loop, risk and noise, room events). Stage 4 (relic perks) is built. Nothing has been tried by a player other than the author.
 
 ## Stage 1: the run loop
 
@@ -23,5 +23,5 @@ Stages 1 to 3 are built (run loop, risk and noise, room events). Stage 4 is not 
 
 ## Stage 4: relics carry over
 
-- [ ] 4.1 One perk per run from the relics found, chosen by scanning (R7)
-- [ ] 4.2 Prove every house under every perk, every speed and every dwell (R8.3)
+- [x] 4.1 One perk per run from the relics found, chosen by scanning (R7). Three perks, one per relic (Soft steps, A free look, Second chance); saved for the next run only; with no relics, none, said gently.
+- [x] 4.2 Prove every house under every perk, every speed and every dwell (R8.3). 205 is played under each perk; 207 holds with the perk line said; 200 seeds with fast-check.

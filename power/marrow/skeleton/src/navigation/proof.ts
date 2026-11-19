@@ -1,5 +1,6 @@
 import { proofResult, type ProofResult } from '../proof';
 import { RUN_BAND, RUN_PROFILES, estimateRunMs, runLengthWords, type ExplorerMaze, type RunLines, type RunProfile } from './explorer';
+import { PERK_IDS } from './perks';
 import { distancesFrom, indexOf, neighbour, opposite, openings, sameCell, simulateRitual, type Cell, type Maze } from './maze';
 
 const where = (c: { x: number; y: number }): string => `column ${c.x + 1}, row ${c.y + 1}`;
@@ -111,13 +112,17 @@ function proveStructure(maze: Maze, label: string): ProofResult[] {
   // 205: a player who fetches every relic the best way, then runs for the door through the chase, is
   // never caught, and the phantom never comes nearer than `ritualGap` rooms.
   const ritual: string[] = [];
-  const sim = simulateRitual(maze);
-  if (sim.caught) {
-    ritual.push(`${label}: a player doing the ritual the best way is caught at step ${sim.at}, at ${where(maze.ritualRoute[sim.at]!)}.`);
-  } else if (sim.nearest < maze.ritualGap) {
-    ritual.push(
-      `${label}: on the best ritual route the phantom comes within ${sim.nearest} room${sim.nearest === 1 ? '' : 's'} at step ${sim.at}. It must stay ${maze.ritualGap} away.`,
-    );
+  // It holds with no perk and with each perk in force (R8.3): every perk is played, one at a time.
+  for (const perk of [null, ...PERK_IDS]) {
+    const sim = simulateRitual(maze, { perk });
+    const under = perk === null ? '' : ` with the ${perk} perk`;
+    if (sim.caught) {
+      ritual.push(`${label}: a player doing the ritual the best way${under} is caught at step ${sim.at}, at ${where(maze.ritualRoute[sim.at]!)}.`);
+    } else if (sim.nearest < maze.ritualGap) {
+      ritual.push(
+        `${label}: on the best ritual route${under} the phantom comes within ${sim.nearest} room${sim.nearest === 1 ? '' : 's'} at step ${sim.at}. It must stay ${maze.ritualGap} away.`,
+      );
+    }
   }
 
   // 206: every relic and hiding place is a room you can reach, and none is the start or the exit.

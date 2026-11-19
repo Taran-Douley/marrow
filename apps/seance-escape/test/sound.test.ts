@@ -138,7 +138,8 @@ describe('a living house', () => {
       kit.render(at(type, data)).find((c) => c.channel === 'speech') as Extract<OutputCommand, { channel: 'speech' }> | undefined;
     expect(tone('walk-hint', { line: 'Go left.' })?.tone?.pitch).toBeGreaterThan(1);
     expect(tone('walk-relic', { line: 'The Locket!', relic: 'The Locket', found: 1, total: 3 })?.tone?.pitch).toBeGreaterThan(1);
-    expect(tone('walk-room', { line: 'The Library.', caption: 'The Library' })?.tone).toBeUndefined();
+    // The narrator is the plain voice: its pitch and pace are the player's own.
+    expect(tone('walk-room', { line: 'The Library.', caption: 'The Library' })?.tone).toEqual({ pitch: 1, rate: 1 });
   });
 
   it('scanning labels never fall behind the highlight, and being caught cuts in', () => {

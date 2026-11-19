@@ -77,6 +77,48 @@ export interface SpeechTone {
 }
 
 /**
+ * The short sound a character makes just before each of its lines. It is the one part of a character's
+ * voice that can be placed left or right, because it is played through Web Audio. The words are not.
+ */
+export interface Signature {
+  hz: number;
+  /** Glide the pitch to this by the end. */
+  hzTo?: number;
+  wave: Wave;
+  /** How long it lasts, in ms. Under 300, so it never holds up a line for long. */
+  ms: number;
+  /** Loudness as a share of the player's speech volume. Default 0.5. */
+  gain?: number;
+}
+
+/**
+ * One speaking character. Declare it once in the kit (`characters`), then name it on an event
+ * (`speaker`). Everything but `name` has a default, so `{ name: 'Mabel', pitch: 1.3 }` is enough.
+ */
+export interface Character {
+  /** Shown before the line in captions and in the aria-live text ("Mabel: ..."). Leave out for the narrator. */
+  name?: string;
+  /** Browser voices you prefer, best first. A name matches if it contains the text, ignoring case. Falls back to the best voice there is. */
+  voices?: readonly string[];
+  /** 1 is the player's voice. About 0.5 to 2. Default 1. */
+  pitch?: number;
+  /** 1 is the player's pace. About 0.5 to 2. Default 1. */
+  rate?: number;
+  /** Where the signature sounds, -1 (left) to 1 (right). The browser's voice cannot be placed. Default 0. */
+  pan?: number;
+  /** The sound before each line. Without one the character has none. */
+  signature?: Signature;
+}
+
+/** A character as an output command carries it: resolved, with its id. */
+export interface SpeakerView extends Character {
+  id: string;
+  pitch: number;
+  rate: number;
+  pan: number;
+}
+
+/**
  * How a spoken line treats the one already being said, when the adapter queues speech:
  * - 'wait': it waits its turn (the default). Nothing is cut off.
  * - 'cut-in': it stops the line being said and clears the queue. For warnings that cannot wait.
@@ -125,6 +167,8 @@ export type OutputCommand =
       key?: string;
       /** A character's voice: higher, lower, faster or slower than the narrator. */
       tone?: SpeechTone;
+      /** Who speaks, when the kit declares characters. Carries the voice, name and signature. */
+      speaker?: SpeakerView;
     }
   | { channel: 'captions'; senses: ['sight']; at: number; text: string; pip?: 1 | 2 | 3 | 4 }
   | { channel: 'indicator'; senses: ['sight']; at: number; flash: boolean }
@@ -187,6 +231,16 @@ export interface EventPresentation {
   speech?: SpeechMode;
   /** Say the line in a character's voice: `{ pitch: 1.3 }` for a small ghost. */
   voice?: SpeechTone;
+  /**
+   * Who says the line: a character id from the kit's `characters`, which may use {slots} ("{boss}").
+   * Captions and the live text then start with the character's name. Without it the narrator speaks.
+   */
+  speaker?: string;
+  /**
+   * More lines said after this one, each by its own speaker. A part whose {slots} the event does not
+   * fill is left out, so a part can be optional.
+   */
+  also?: readonly { say: string; speaker?: string; caption?: string }[];
   /** How much it matters. Default 'important'. Words below the player's announce level are not said or captioned. */
   priority?: Priority;
   caption?: string;

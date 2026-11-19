@@ -1,5 +1,6 @@
 import { mulberry32 } from '../level';
 import { rollRoomEvent } from './events';
+import { PHANTOM_PERKS, perkNoise, type PerkId } from './perks';
 
 // The navigation pattern's world: a maze with a start, an exit and a phantom.
 // It is built so that it can always be escaped: the phantom never starts where it
@@ -103,21 +104,34 @@ export function simulateRitual(
    * the last. The result is the worst of them. Say `{ searches: [...] }` to judge one way only: the relic numbers
    * (by order on the route) searched in, none for `[]`.
    */
-  costs: { searches?: readonly number[]; events?: boolean } = {},
+  costs: { searches?: readonly number[]; events?: boolean; perk?: PerkId | null } = {},
 ): {
   nearest: number;
   at: number;
   caught: boolean;
 } {
-  if (costs.searches !== undefined) return simulateOnce(m, costs.searches, costs.events ?? true);
+  // A perk named: judge that one (`null` is none). Left out, the worst of no perk and every perk that changes the phantom's
+  // part in the route, so a house built with this proof is fair under any perk.
+  const perks: readonly (PerkId | null)[] = costs.perk !== undefined ? [costs.perk] : [null, ...PHANTOM_PERKS];
+  if (costs.searches !== undefined) {
+    let worst = { nearest: Infinity, at: 0, caught: false };
+    for (const perk of perks) {
+      const result = simulateOnce(m, costs.searches, costs.events ?? true, perk);
+      if (result.caught) return result;
+      if (result.nearest < worst.nearest) worst = result;
+    }
+    return worst;
+  }
   const route = m.ritualRoute;
   const steps = m.relics.map((r) => route.findIndex((c) => sameCell(c, r))).sort((a, b) => a - b);
   const searchable = steps.slice(0, -1).map((_, i) => i); // every relic room but the last
   let worst = { nearest: Infinity, at: 0, caught: false };
-  for (let mask = 0; mask < 1 << searchable.length; mask++) {
-    const result = simulateOnce(m, searchable.filter((_, i) => (mask & (1 << i)) !== 0), costs.events ?? true);
-    if (result.caught) return result;
-    if (result.nearest < worst.nearest) worst = result;
+  for (const perk of perks) {
+    for (let mask = 0; mask < 1 << searchable.length; mask++) {
+      const result = simulateOnce(m, searchable.filter((_, i) => (mask & (1 << i)) !== 0), costs.events ?? true, perk);
+      if (result.caught) return result;
+      if (result.nearest < worst.nearest) worst = result;
+    }
   }
   return worst;
 }
@@ -126,6 +140,7 @@ function simulateOnce(
   m: PhantomMaze & Pick<Maze, 'ritualRoute'>,
   searchAt: readonly number[],
   events: boolean,
+  perk: PerkId | null = null,
 ): { nearest: number; at: number; caught: boolean } {
   const route = m.ritualRoute;
   const relicSteps = m.relics.map((r) => route.findIndex((c) => sameCell(c, r))).sort((a, b) => a - b);
@@ -148,7 +163,7 @@ function simulateOnce(
     const player = route[k]!;
     const chasing = k > lastRelicStep;
     if (sameCell(player, phantom.at)) return { nearest: 0, at: k, caught: true };
-    const turn = phantomTurn(m, phantom, player, { hidden: false, chasing, noise: chasing ? NOISE.run : NOISE.walk });
+    const turn = phantomTurn(m, phantom, player, { hidden: false, chasing, noise: perkNoise(perk, chasing ? NOISE.run : NOISE.walk) });
     phantom = turn.state;
     if (turn.caught) return { nearest: 0, at: k, caught: true };
     near(k, player);
@@ -157,11 +172,11 @@ function simulateOnce(
       if (room >= 0 && !rolled.has(room)) {
         rolled.add(room);
         const event = rollRoomEvent(m.seed, room);
-        if (event?.effect.kind === 'noise') phantom = phantomHears(m, phantom, player, event.effect.level, true).state;
+        if (event?.effect.kind === 'noise') phantom = phantomHears(m, phantom, player, perkNoise(perk, event.effect.level), true).state;
       }
     }
     if (!chasing && searchSteps.has(k)) {
-      const search = phantomTurn(m, phantom, player, { hidden: false, chasing: false, force: true, noise: NOISE.search });
+      const search = phantomTurn(m, phantom, player, { hidden: false, chasing: false, force: true, noise: perkNoise(perk, NOISE.search) });
       phantom = search.state;
       if (search.caught) return { nearest: 0, at: k, caught: true };
       near(k, player);
