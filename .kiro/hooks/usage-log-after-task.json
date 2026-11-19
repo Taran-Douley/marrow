@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Log Kiro usage after each spec task",
+      "description": "After a spec task finishes, append a short entry to docs/kiro-usage-log.md: raw material for the write-up and blog.",
+      "trigger": "PostTaskExecution",
+      "action": {
+        "type": "agent",
+        "prompt": "A spec task has just finished. Append a dated entry to docs/kiro-usage-log.md (do not rewrite earlier entries). Say, in plain short sentences: which task it was; which Kiro features were used (spec, steering, hooks, MCP, custom agents, the power); what was built; what was proved or tested, with real numbers from the last test run; and anything not yet checked by a person. Never write that a game is fully accessible."
+      }
+    }
+  ]
+}

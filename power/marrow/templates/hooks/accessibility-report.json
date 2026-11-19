@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Refresh the accessibility feature list",
+      "description": "When the kit or an object changes, ask the agent to regenerate the accessibility feature list from the proof, never by hand.",
+      "trigger": "PostFileSave",
+      "matcher": "src[/\\\\](kit|objects|stages)",
+      "action": {
+        "type": "agent",
+        "prompt": "An object or kit file changed. Run the level-forge `a11y_report` tool for this game (use `navigation: true` for a house game, `directionalSound: true` if cues are placed all the way round, `cameraMotion: true` for a moving camera) and update the accessibility section of the README from its Markdown. List only what the tool reports as supported, and the items to confirm separately. Never write that the game is fully accessible."
+      }
+    }
+  ]
+}

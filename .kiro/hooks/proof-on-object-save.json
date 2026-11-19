@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Proof on object or content save",
+      "description": "When an object, stage, lesson, track or kit file changes, run both apps' tests. They hold the proof: every generated level, boss and house must pass it before it can be served.",
+      "trigger": "PostFileSave",
+      "matcher": "apps[/\\\\][^/\\\\]+[/\\\\]src[/\\\\](objects|stages|kit|tracks|lessons|scene|world)",
+      "action": { "type": "command", "command": "npm test --workspace apps/ghastly-moves --workspace apps/seance-escape" },
+      "timeout": 300
+    }
+  ]
+}

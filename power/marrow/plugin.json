@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "marrow",
+  "version": "0.1.0",
+  "description": "Build browser games that players with disabilities can finish. Marrow gives every game sound, speech, captions, touch and one-switch play by default, and a property-based proof refuses any level that cannot be finished with one switch.",
+  "author": {
+    "name": "Taran"
+  },
+  "keywords": [
+    "game",
+    "games",
+    "game development",
+    "browser game",
+    "accessible",
+    "accessibility",
+    "a11y",
+    "one-switch",
+    "single switch",
+    "screen reader",
+    "blind",
+    "deaf",
+    "captions",
+    "platformer",
+    "rhythm game",
+    "puzzle game",
+    "maze",
+    "marrow"
+  ],
+  "license": "MIT"
+}

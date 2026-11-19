@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ghastly Moves (test build)</title>
+    <style>
+      :root {
+        --bg: #14101f;
+        --panel: #241c36;
+        --text: #f4efe6;
+        --muted: #c9c0d8;
+        --line: #9d94b5;
+        --focus: #ffd84d;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 1.125rem;
+        line-height: 1.5;
+      }
+      main { max-width: 980px; margin: 0 auto; padding: 1rem; }
+      h1 { margin: 0.25rem 0; font-size: 1.75rem; }
+      h1 small { color: var(--muted); font-weight: normal; font-size: 1rem; }
+      p { margin: 0.5rem 0; }
+      canvas { display: block; width: 100%; height: auto; border: 2px solid var(--line); background: var(--bg); }
+      canvas[hidden] { display: none; }
+      form { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: end; margin: 1rem 0; padding: 1rem; background: var(--panel); border: 2px solid var(--line); }
+      label { display: block; }
+      select, input[type="number"] { font: inherit; padding: 0.4rem; min-width: 8rem; color: var(--text); background: var(--bg); border: 2px solid var(--line); }
+      input[type="checkbox"] { width: 1.4rem; height: 1.4rem; vertical-align: middle; margin-right: 0.4rem; }
+      button { font: inherit; padding: 0.6rem 1.2rem; color: #14101f; background: var(--text); border: 2px solid var(--text); cursor: pointer; }
+      button.secondary { color: var(--text); background: var(--panel); border-color: var(--line); }
+      :focus-visible { outline: 4px solid var(--focus); outline-offset: 2px; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      #stats { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Ghastly Moves <small>test build</small></h1>
+      <p id="instructions">
+        A ghost with a lantern walks the road through Grimsby Hollow, a Halloween story in seven places. Each place has
+        its own kind of number rule and ends with a boss. Beat the boss to win an item for your lantern. Each gravestone has a number, spoken and
+        shown, and three beeps. If the number fits the rule, jump on the fourth beat: press any
+        key, click, tap, or press a gamepad button. If it is not, do nothing and let it pass. A mistake tells
+        you why. Right answers in a row climb a tune and light the lantern. Escape comes back to the start.
+        Everything you see is also spoken and written for screen readers.
+      </p>
+
+      <canvas
+        id="game"
+        width="960"
+        height="540"
+        role="img"
+        aria-label="Game view. A ghost with a lantern dances past numbered gravestones. Everything shown here is also spoken and written to the text log."
+      ></canvas>
+
+      <div id="announcements" class="visually-hidden"></div>
+
+      <form id="settings" data-marrow-ignore>
+        <label>Speed
+          <select id="speed">
+            <option value="slow">Slow</option>
+            <option value="medium">Medium</option>
+            <option value="fast">Fast</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="picture" />Picture on</label>
+        <label><input type="checkbox" id="voice" />Built-in voice on</label>
+        <label><input type="checkbox" id="assist" />Timing help: press any time in the countdown</label>
+        <label>Voice (this browser)
+          <select id="voicepick"><option value="">Best natural voice (automatic)</option></select>
+        </label>
+        <label>Stage
+          <select id="stage"></select>
+        </label>
+        <label>Times table (free practice)
+          <select id="table"></select>
+        </label>
+        <label>Level number
+          <input type="number" id="level" min="1" max="999999" value="1" />
+        </label>
+        <button type="button" id="start">Start</button>
+        <button type="button" id="download" class="secondary">Download results (CSV)</button>
+      </form>
+
+      <h2>The story map</h2>
+      <ol id="map"></ol>
+      <p id="stats" aria-live="off">No attempts yet.</p>
+      <p>
+        Turn the built-in voice off if you use a screen reader. The same lines are still written to a text
+        log your screen reader can read. Picture off hides the game so you can play by sound alone.
+      </p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,107 @@
+{
+  "date": "2026-11-18T21:16:09.802Z",
+  "checks": [
+    {
+      "id": "lang",
+      "name": "Page language is set",
+      "rule": "The page says its language, so a screen reader reads it in the right voice."
+    },
+    {
+      "id": "live-region",
+      "name": "Has a live text region",
+      "rule": "There is an aria-live (or status/log/alert) region for screen readers."
+    },
+    {
+      "id": "any-key",
+      "name": "Any key works",
+      "rule": "An ordinary key (J) makes the game respond: \"any key is the switch\"."
+    },
+    {
+      "id": "click",
+      "name": "A click works",
+      "rule": "A click on the game makes it respond."
+    },
+    {
+      "id": "touch",
+      "name": "A tap works",
+      "rule": "A tap on the game (the events a phone sends) makes it respond."
+    },
+    {
+      "id": "gamepad",
+      "name": "Reads gamepads",
+      "rule": "The game asks the browser for gamepads while it runs."
+    },
+    {
+      "id": "no-repeat",
+      "name": "Ignores key repeat",
+      "rule": "Holding a key (repeat events) does no more than doing nothing."
+    },
+    {
+      "id": "tab",
+      "name": "Leaves Tab alone",
+      "rule": "Tab is not taken over, so keyboard users can reach the controls."
+    },
+    {
+      "id": "speech-text",
+      "name": "Speech is also written",
+      "rule": "Every spoken line also appears as text for screen readers and deaf players."
+    },
+    {
+      "id": "voice-off",
+      "name": "Voice can be turned off",
+      "rule": "There is a control to turn the game’s own voice off, for screen-reader users."
+    },
+    {
+      "id": "sound-text",
+      "name": "Sound is also shown",
+      "rule": "When the game plays sounds, it also shows text, so nothing is by sound alone."
+    },
+    {
+      "id": "reduced-motion",
+      "name": "Asks about reduced motion",
+      "rule": "The game checks the player’s reduced-motion setting."
+    },
+    {
+      "id": "focus",
+      "name": "Visible keyboard focus",
+      "rule": "The page styles keyboard focus so it can be seen."
+    },
+    {
+      "id": "gentle-failure",
+      "name": "No game over",
+      "rule": "Playing badly for a minute never shows \"game over\" or counts lives."
+    }
+  ],
+  "results": [
+    {
+      "prompt": "runner",
+      "side": "without",
+      "missing": true
+    },
+    {
+      "prompt": "runner",
+      "side": "with",
+      "missing": true
+    },
+    {
+      "prompt": "quiz",
+      "side": "without",
+      "missing": true
+    },
+    {
+      "prompt": "quiz",
+      "side": "with",
+      "missing": true
+    },
+    {
+      "prompt": "rhythm",
+      "side": "without",
+      "missing": true
+    },
+    {
+      "prompt": "rhythm",
+      "side": "with",
+      "missing": true
+    }
+  ]
+}

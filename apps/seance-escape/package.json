@@ -1,0 +1,29 @@
+{
+  "name": "@marrow/app-seance-escape",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Séance Escape: escape a haunted house in the dark, by sound. Built on Marrow.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "report": "vitest run test/report.test.ts -u",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@marrow/skeleton": "*",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "jsdom": "^31.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}
+

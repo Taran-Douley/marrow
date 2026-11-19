@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "level-forge": {
+      "command": "node",
+      "args": ["mcp/level-forge/dist/main.js"],
+      "disabled": false,
+      "autoApprove": ["generate_level", "prove_level", "prove_many", "simulate_persona", "prove_house"]
+    }
+  }
+}

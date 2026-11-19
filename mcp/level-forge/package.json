@@ -1,0 +1,24 @@
+{
+  "name": "@marrow/level-forge",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Level Forge: a local MCP server that generates, proves and playtests Marrow levels.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "level-forge": "dist/main.js" },
+  "scripts": {
+    "build": "vite build",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@marrow/skeleton": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Proof on object or level save",
+      "description": "When an object, lesson, stage or kit file changes, run the project's tests. They hold the proof: every generated level must pass it before it can be served.",
+      "trigger": "PostFileSave",
+      "matcher": "src[/\\\\](objects|stages|lessons|kit|content)",
+      "action": { "type": "command", "command": "npm test" },
+      "timeout": 300
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "No over-claiming",
+      "description": "Marrow never calls a game fully accessible, or accessible to everyone.",
+      "trigger": "PostFileSave",
+      "matcher": "\\.(md|html)$",
+      "action": {
+        "type": "agent",
+        "prompt": "A text file changed. If it says a game is 'fully accessible', 'completely accessible', '100% accessible' or 'accessible to everyone' (and is not saying the claim is NOT made), replace it with a plain statement of what the game supports, from the `a11y_report` tool, and say that it does not replace testing with disabled players."
+      }
+    }
+  ]
+}

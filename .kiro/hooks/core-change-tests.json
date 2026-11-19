@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Tests on core change",
+      "description": "When the skeleton changes, run every package's tests, so the core, both apps and the MCP server stay green together.",
+      "trigger": "PostFileSave",
+      "matcher": "skeleton[/\\\\]src[/\\\\]",
+      "action": { "type": "command", "command": "npm test --workspaces --if-present" },
+      "timeout": 600
+    }
+  ]
+}
