@@ -19,7 +19,8 @@ export interface StageSong {
 
 /** Two bars to settle in. If the rule takes longer to say, the game waits for it (see main.ts). */
 const intro = { name: 'Intro', bars: 2, feel: 'rest' } as const;
-const breakdown = { name: 'Breakdown', bars: 2, feel: 'rest' } as const;
+/** A short breather: one bar, so the music drops out and comes back before the wait drags. */
+const breakdown = { name: 'Breakdown', bars: 1, feel: 'rest' } as const;
 const flip = (name: string, bars: number, feel: 'calm' | 'busy') => ({ name, bars, feel, move: 'flip', kinds: ['spike'] }) as const;
 const gates = (name: string, bars: number, feel: 'calm' | 'busy') => ({ name, bars, feel, move: 'switch', kinds: ['gate'] }) as const;
 const jump = (name: string, bars: number, feel: 'calm' | 'busy') => ({ name, bars, feel, move: 'jump' }) as const;

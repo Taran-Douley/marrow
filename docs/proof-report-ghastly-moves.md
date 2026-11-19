@@ -16,7 +16,7 @@ Smallest take-off window across all levels: **717 ms at Slow, 538 ms at Medium, 
 | 2 boss | The Bone Warden | 200 of 200 | 717 / 538 / 430 | 99% / 90% |
 | 3 | Whispering Woods | 200 of 200 | 717 / 538 / 430 | 100% / 92% |
 | 3 boss | The Moss Witch | 200 of 200 | 717 / 538 / 430 | 99% / 90% |
-| 4 | The Old Gate | 200 of 200 | 717 / 538 / 430 | 100% / 92% |
+| 4 | The Old Gate | 200 of 200 | 717 / 538 / 430 | 100% / 93% |
 | 4 boss | The Gatekeeper | 200 of 200 | 717 / 538 / 430 | 99% / 90% |
 | 5 | Haunted Mill | 200 of 200 | 717 / 538 / 430 | 100% / 94% |
 | 5 boss | The Spider Miller | 200 of 200 | 717 / 538 / 430 | 99% / 90% |

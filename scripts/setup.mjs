@@ -4,6 +4,7 @@
 //   npm run setup                 check Node, install, build, start both games, open them
 //   npm run setup -- --no-start   everything but starting the games (for CI, or a slow machine)
 //   npm run setup -- --no-open    start the games but do not open a browser
+//   npm run play                  the quick way to test the newest code: start both games now (no build)
 //
 // It uses only Node's own modules, so it works before anything is installed. Every failure says
 // what to do next.
@@ -51,6 +52,13 @@ if (major < NEED[0] || (major === NEED[0] && minor < NEED[1])) {
 if (!run(npm, ['--version']).ok) stop('npm could not be found.', 'npm comes with Node. Reinstall Node from https://nodejs.org.');
 say(`  Node ${process.versions.node}: good.`);
 
+// `npm run play`: the quick way to test the newest code. It installs only if nothing is installed yet,
+// skips the build (the dev servers run straight from the source, with live reload), and starts both games.
+const quick = args.has('--quick');
+if (quick && existsSync(join(root, 'node_modules'))) {
+  say('\n[2/4] Already installed. (Run  npm run setup  for a full install and build.)');
+  say('[3/4] No build needed: the games run straight from the source and reload as you save.');
+} else {
 // ---- 2. install ---------------------------------------------------------------------
 step(2, 'Installing (this can take a minute the first time).');
 const install = run(npm, existsSync(join(root, 'package-lock.json')) && !existsSync(join(root, 'node_modules')) ? ['ci', '--no-audit', '--no-fund'] : ['install', '--no-audit', '--no-fund']);
@@ -75,6 +83,7 @@ for (const g of GAMES) {
     ]);
   }
   say(`  ${g.name}: built.`);
+}
 }
 
 if (args.has('--no-start')) {

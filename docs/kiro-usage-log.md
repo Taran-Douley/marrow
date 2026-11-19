@@ -359,3 +359,8 @@ A second spec, written before any code: `.kiro/specs/marrow-advisor/` (requireme
 - **Kiro.** The accessibility-designer agent talks the plan through and ticks only what is agreed. The advise-on-brief hook remakes plans when a brief is saved. MCP tools `advise_game`, `sound_palette` and `quality_report` serve any engine. The power ships the advisor as `mcp/advisor.mjs`, and `new-game` adds a brief and `npm run advise` to the starter.
 - **Both games have a brief and a plan**, with decisions recorded the way their developer would make them: Ghastly Moves keeps its own sounds instead of the palette, and S�ance Escape's sound guide and hints are marked done.
 - Not tried yet: a developer other than the author using it on a new game.
+
+## Shorter waits in Ghastly Moves; npm run play
+
+- The advisor's quality report found waits of up to 17 s at Slow. Portals now clear one bar instead of two, and the run holds only as long as the portal's words take (`holdForWords`), so Slow is not slowed for Fast's sake. Breakdowns are one bar instead of two. The longest wait is now 7 to 10 s at Slow on every stage. All levels still pass every proof.
+- `npm run play` starts both games from the newest code, with live reload, and skips install and build when they are done. The games are live at https://taran-douley.github.io/marrow/ and rebuild on every merge to main.
