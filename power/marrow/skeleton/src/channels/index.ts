@@ -7,10 +7,13 @@ import type {
   Priority,
   Profile,
   SemanticEvent,
+  Character,
+  SpeakerView,
   SpeechMode,
   SpeechTone,
   Wave,
 } from '../types';
+import { NARRATOR, labelled, speakerView } from '../speech';
 import { DEFAULT_AUDIO, directionWords, placementOf, voiceOf, worldSound, type AudioOptions } from './audio';
 import { EVENT_TYPES, beatOf, dataBool, dataNumber, dataString, type FallReason } from './events';
 import { createStrings, fillSlots, phrase, type PhraseKey, type Strings } from './phrases';
@@ -43,6 +46,8 @@ export interface ChannelOptions {
   replace?: Partial<Record<ChannelId, Channel>>;
   /** Leave a built-in channel out. The proof will tell you if an event then reaches fewer than two senses. */
   omit?: readonly ChannelId[];
+  /** Speaking characters, by id. The one called 'narrator' speaks every line that names no speaker. */
+  characters?: Readonly<Record<string, Character>>;
   /** Switch parts of the sound world on or off, or change its key. */
   audio?: AudioOptions;
 }
@@ -81,6 +86,19 @@ interface Context {
   events: ChannelOptions['events'];
   fallback: { hz: number; wave: Wave };
   audio: Required<AudioOptions>;
+  characters: Readonly<Record<string, Character>>;
+}
+
+/** Who speaks: the named character (its id may use {slots}), or the narrator if the kit has one. Unknown ids are the narrator too. */
+function speakerOf(ctx: Context, template: string | undefined, slots: Record<string, string>): SpeakerView | undefined {
+  const id = template === undefined ? NARRATOR : template.replace(/\{(\w+)\}/g, (_m, slot: string) => slots[slot] ?? '');
+  const who = ctx.characters[id] ?? ctx.characters[NARRATOR];
+  return who ? speakerView(ctx.characters[id] ? id : NARRATOR, who) : undefined;
+}
+
+/** True when every {slot} in the template has a value. */
+function fills(template: string, slots: Record<string, string>): boolean {
+  return [...template.matchAll(/\{(\w+)\}/g)].every((m) => slots[m[1]!] !== undefined && slots[m[1]!] !== '');
 }
 
 /** The presentation of one of the developer's own events, if it is not a built-in one. */
@@ -236,23 +254,35 @@ function speechChannel(ctx: Context): Channel {
   return {
     id: 'speech',
     render(event, profile) {
-      const speak = (text: string, mode?: SpeechMode, tone?: SpeechTone): OutputCommand[] => [
-        {
-          channel: 'speech',
-          senses: ['hearing'],
-          at: event.at,
-          text,
-          ...(mode ? { mode } : {}),
-          ...(mode === 'latest' ? { key: event.type } : {}),
-          ...(tone ? { tone } : {}),
-        },
-      ];
+      const narrator = speakerOf(ctx, undefined, {});
+      const speak = (text: string, mode?: SpeechMode, tone?: SpeechTone, speaker: SpeakerView | undefined = narrator): OutputCommand[] => {
+        // A declared character brings its own pitch and pace; a tone set on the event wins over them.
+        const how = tone ?? (speaker ? { pitch: speaker.pitch, rate: speaker.rate } : undefined);
+        return [
+          {
+            channel: 'speech',
+            senses: ['hearing'],
+            at: event.at,
+            text,
+            ...(mode ? { mode } : {}),
+            ...(mode === 'latest' ? { key: event.type } : {}),
+            ...(how ? { tone: how } : {}),
+            ...(speaker ? { speaker } : {}),
+          },
+        ];
+      };
       const custom = customOf(ctx, event);
       if (custom) {
         if (custom.say === undefined || !heard(custom.priority, profile)) return [];
         // A critical line cuts in, unless the game chose otherwise.
         const mode = custom.speech ?? (custom.priority === 'critical' ? 'cut-in' : undefined);
-        return speak(fillSlots(custom.say, slotsOf(event)), mode, custom.voice);
+        const slots = slotsOf(event);
+        const first = speak(fillSlots(custom.say, slots), mode, custom.voice, speakerOf(ctx, custom.speaker, slots));
+        // Later parts of the event, each by its own speaker. They wait their turn behind the first.
+        const more = (custom.also ?? []).flatMap((part) =>
+          fills(part.say, slots) ? speak(fillSlots(part.say, slots), 'wait', undefined, speakerOf(ctx, part.speaker, slots)) : [],
+        );
+        return [...first, ...more];
       }
       // A scanning label never makes the voice fall behind the highlight.
       if (event.type === EVENT_TYPES.menuOption) {
@@ -298,7 +328,17 @@ function captionsChannel(ctx: Context): Channel {
           : { channel: 'captions', senses: ['sight'], at: event.at, text, pip },
       ];
       const custom = customOf(ctx, event);
-      if (custom) return custom.caption === undefined || !heard(custom.priority, profile) ? [] : show(fillSlots(custom.caption, slotsOf(event)));
+      if (custom) {
+        if (!heard(custom.priority, profile)) return [];
+        const slots = slotsOf(event);
+        // A character's name comes first, so a reader can tell who speaks.
+        const named = (text: string, speaker: string | undefined): string => labelled(text, speakerOf(ctx, speaker, slots));
+        const first = custom.caption === undefined ? [] : show(named(fillSlots(custom.caption, slots), custom.speaker));
+        const more = (custom.also ?? []).flatMap((part) =>
+          part.caption !== undefined && fills(part.caption, slots) && fills(part.say, slots) ? show(named(fillSlots(part.caption, slots), part.speaker)) : [],
+        );
+        return [...first, ...more];
+      }
 
       // In a lesson the caption is the number, and the fourth beat must not say "press now".
       const value = dataNumber(event, 'value');
@@ -396,6 +436,7 @@ export function createChannels(objects: ObjectLookup, options: ChannelOptions = 
     events: options.events,
     fallback: options.fallbackSound ?? { hz: VOICE_TABLE[0]!.hz, wave: VOICE_TABLE[0]!.wave },
     audio: { ...DEFAULT_AUDIO, ...stripUndefinedAudio(options.audio ?? {}) },
+    characters: options.characters ?? {},
   };
   const builtIn: Channel[] = [
     soundChannel(ctx),

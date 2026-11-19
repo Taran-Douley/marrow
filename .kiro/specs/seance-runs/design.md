@@ -1,6 +1,6 @@
 # Design: Séance Escape runs
 
-Stage 1 is built. The other pillars are design only.
+Stages 1 to 4 are built.
 
 ## 1. Every run is a new house (built)
 
@@ -78,13 +78,23 @@ Ten events (`ROOM_EVENTS` in `skeleton/src/navigation/events.ts`), rolled once p
 
 Events never change the maze, so 201 to 204, 206 and 207 are not affected. The noisy events are part of the proof of 205 (section 5). Property tests over 200 seeds check that playing a house with its events leaves the maze and its proof results unchanged (`skeleton/test/risk-and-events.test.ts`).
 
-## 7. Relics carry over, perks chosen by scanning (design)
+## 7. Relics carry over, perks chosen by scanning (built, stage 4)
 
-At the end of a run, the player has earned one perk token per relic found, to a limit of one perk. A scanned list offers the perks (for example: Soft steps, one free hint, a longer hide, a warmer lantern), each lit for the dwell, no time limit, one press chooses. The choice is saved (`seance.perk`) and applies to the next run. A perk changes the phantom's rules in a small, bounded way, so every house is proven under every perk (R8.3). A perk is never needed.
+At the end of a run (escape or three catches), each relic found offers its perk. The player chooses one by scanning: each perk is said with what it does, lit for the dwell, and the list goes round with no time limit. The last entry is "No perk". One press chooses. The choice is saved (`seance.perk`, in try/catch) and read once at the next run's start, then cleared, so it applies to that run only. The run's introduction says "Perk on: ...". With no relics found there is no perk, said gently. A perk is never needed.
 
-## 8. Proof under every profile (built for 201 to 207, perks later)
+| Relic | Perk | Effect | Words |
+| --- | --- | --- | --- |
+| the Silver Candle | Soft steps | Every noise you make is one level quieter (walking 1 to 0, running 2 to 1, a search 3 to 2, events too) | Every noise you make is one step quieter, so the phantom hears you from less far away. |
+| the Locket | A free look | Your first Listen and first hint at a stop cost no turn: the phantom does not move. The option says so before it is chosen, and is priced normally after | Your first Listen and your first hint cost no turn, so the phantom does not move. |
+| the Planchette | Second chance | The first catch is told and you are put back as usual, but it does not count toward the three or the score | The first time the phantom catches you does not count toward the three. |
+
+Rules every perk keeps: it never changes the house (generation takes no perk); it never changes the timing model (stride, lines, dwell); it only lowers a cost or adds help. Only soft steps changes the phantom's part on the best route, so `simulateRitual` plays it and the generator places the phantom to be fair with and without it.
+
+## 8. Proof under every profile and every perk (built)
 
 `proveMaze` runs 201 to 206 on the house and does not depend on speed or dwell: the phantom moves by steps of the player, so a house that is safe is safe at every speed and every dwell. The profile only changes real time. 207 does depend on the profile and is checked for all nine. The tests run the proof on 240 seeds with fast-check (`skeleton/test/run-length.test.ts`), on the served houses of the app (`apps/seance-escape/test/runs.test.ts`) and from the server (`mcp/level-forge/test/server.test.ts`).
+
+Perks (stage 4): property 205 is played with no perk and with each perk (`simulateRitual(house, { perk })`); the default `simulateRitual` is the worst of no perk and soft steps, which the generator uses. A run with a perk says one more line at its start, so the game's fit and final proof also judge 207 with the longest perk line added to the introduction (`PERK_RUN_LINES`). Tests: `skeleton/test/perks.test.ts` (200 seeds) and `apps/seance-escape/test/perks.test.ts` (60 served houses, all 9 profiles, 200 seeds).
 
 ## 9. Graphics (built)
 

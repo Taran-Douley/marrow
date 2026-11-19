@@ -1,5 +1,6 @@
 import { createKit, type Kit, type Lesson } from '@marrow/skeleton';
 import { timesTable } from './lessons';
+import { GHASTLY_CHARACTERS } from './voices';
 import { useObject } from '@marrow/skeleton/catalogue';
 import { OBJECTS } from './objects/index.generated';
 import { defineGate, defineSpike } from './objects/moves';
@@ -38,6 +39,7 @@ export function createGhastlyKit(what: number | Stage | Lesson, options: Ghastly
     // time at each obstacle; later falls there say the short reason and the attempt.
     run: { fallPause: 0.4, restartLead: 0.8, explainOnce: true },
     strings: { fallEarly: 'Early.', fallLate: 'Late.', fallNone: 'Missed.', fallWrong: 'Wrong number.' },
+    characters: GHASTLY_CHARACTERS,
     ...(song ? { song: song.song, timing: { beat: song.beat } } : {}),
     ...(pattern ? { properties: [patternByEar(pattern), tellsClearOfCountdowns(pattern)] } : {}),
     ...(track ? { audio: { keyHz: track.rootHz, track } } : {}),
@@ -77,7 +79,12 @@ export function createGhastlyKit(what: number | Stage | Lesson, options: Ghastly
         caption: '{rule}. Press any key to begin.',
       },
       'stage-clear': {
-        say: '{place} done. {right} of {total} right. Rank {rank}. {taunt} Press any key to fight {boss}.',
+        say: '{place} done. {right} of {total} right. Rank {rank}.',
+        // The boss taunts in its own voice, then the narrator says what to do. No countdown is running.
+        also: [
+          { say: '{taunt}', speaker: '{boss}', caption: '{taunt}' },
+          { say: 'Press any key to fight {boss}.' },
+        ],
         caption: '{place} done: rank {rank}. Next: {boss}',
         sound: { hz: 659, wave: 'sine', gain: 0.6, role: 'reward', shape: { hzTo: 880, seconds: 0.6 } },
         haptic: [60, 50, 60],

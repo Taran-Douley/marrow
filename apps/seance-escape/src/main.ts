@@ -15,7 +15,7 @@ import {
   distancesFrom,
   indexOf,
   mergeProfile,
-  speechMs,
+  totalSpokenMs,
   walkResult,
   withAcoustics,
   type Acoustics,
@@ -34,6 +34,20 @@ import { MABEL, PASSAGE, RELICS, ROOM_EVENT_STYLES, SEARCH_LINES, WARDROBE, WHIS
 import { CLOSE_RANGE, heartRate, heartWords } from './dread';
 import { GUIDE, type GuideItem } from './guide';
 import { FRIGHTS, createSeanceKit, type Fright } from './kit';
+import {
+  NO_PERK_ID,
+  NO_PERK_LABEL,
+  PERK_KEY,
+  PERK_PLAY,
+  perkChoiceIntro,
+  perkChosen,
+  perkOffer,
+  perkOptionLabel,
+  perkStartLine,
+  perksFor,
+  readPerk,
+  type PerkWords,
+} from './perks';
 import {
   CATCHES_KEY,
   CATCH_LIMIT,
@@ -105,7 +119,9 @@ const adapter = createWebAdapter({
 
 let profile: Profile = adapter.withOsPreferences(adapter.loadProfile() ?? kit.newProfile());
 /** 'ended' is the moment after a run: one press enters a new house. */
-let mode: 'menu' | 'guide' | 'playing' | 'ended' = 'menu';
+let mode: 'menu' | 'guide' | 'playing' | 'ended' | 'perk' = 'menu';
+/** The perks the last run's relics give. The player chooses one by scanning before the next house. */
+let pendingPerks: PerkWords[] = [];
 let walk: Walk | null = null;
 let maze: Maze | null = null;
 let rooms: RoomInfo[] = [];
@@ -198,7 +214,7 @@ element('start').addEventListener('click', () => {
   adapter.unlock();
   unlocked = true;
   menus.close();
-  if (mode === 'menu' || mode === 'guide' || mode === 'ended') {
+  if (mode === 'menu' || mode === 'guide' || mode === 'ended' || mode === 'perk') {
     guide = null;
     start();
   }
@@ -259,7 +275,8 @@ function say(text: string): void {
 
 /** How long an event takes to say, by its real words. A little extra, because voices differ in speed. */
 function spokenMs(event: SemanticEvent): number {
-  const total = kit.render(event, profile).reduce((sum, c) => sum + (c.channel === 'speech' ? speechMs(c.text) : 0), 0);
+  // Words plus any character's signature sound before them.
+  const total = totalSpokenMs(kit.render(event, profile));
   return Math.round(total * 1.2);
 }
 
@@ -301,7 +318,7 @@ function decorate(type: string, data: Readonly<Record<string, unknown>>): Record
     case 'walk-hint': {
       const way = MABEL.hint(data.what === 'exit' ? 'exit' : 'relic', String(data.way), Number(data.rooms));
       // After a few catches Mabel steps in without being asked.
-      return { line: data.free ? `${MABEL.offer} ${way}` : way };
+      return { line: data.free ? `${MABEL.offer} ${way}` : data.perk ? `${way} ${PERK_PLAY.freeListen}` : way };
     }
     case 'room-event': {
       const style = ROOM_EVENT_STYLES[String(data.id)];
@@ -330,13 +347,63 @@ function decorate(type: string, data: Readonly<Record<string, unknown>>): Record
       const mood = !s ? '' : s.chasing ? ' It knows where you are!' : s.ghostMode === 'hunt' ? ' It is hunting you.' : ' It is wandering.';
       return { mood };
     }
+    case 'walk-listen':
+      return data.free === true ? { summary: `${String(data.summary)} ${PERK_PLAY.freeListen}` } : undefined;
     case 'caught': {
+      // Second chance: the first catch does not count, and Mabel says so.
+      if (data.forgiven === true) return { line: PERK_PLAY.forgiven };
       const n = Number(data.catches) || 1;
       return { line: catchesEnd() && n >= CATCH_LIMIT ? MABEL.lastCatch : MABEL.caught(n) };
     }
     default:
       return undefined;
   }
+}
+
+// ---- choosing a perk ------------------------------------------------------------
+//
+// One switch, no time limit: each perk is lit in turn and said with what it does; the list goes round until one is
+// chosen. The last choice is "No perk". Chosen, it is saved for the next run only, and that run starts at once.
+
+let perkScan: Scanner | null = null;
+let perkResumeAt = 0;
+let perkLitAt = -1;
+let perkOptions: PerkWords[] = [];
+
+function openPerkChoice(now: number): void {
+  mode = 'perk';
+  perkOptions = pendingPerks;
+  const options: ScanOption[] = [
+    ...perkOptions.map((p) => ({ id: p.id, label: perkOptionLabel(p) })),
+    { id: NO_PERK_ID, label: NO_PERK_LABEL },
+  ];
+  perkScan = createScanner({ options, dwellMs: profile.dwellMs });
+  const line = perkChoiceIntro(perkOptions.length);
+  announce('guide-line', { line });
+  perkResumeAt = now + spokenMs({ type: 'guide-line', at: 0, data: { line } });
+  perkLitAt = -1;
+}
+
+function perkTick(now: number): void {
+  if (!perkScan || now < perkResumeAt) return;
+  const lit = perkLitAt < 0 ? perkScan.start(now) : perkScan.tick(now);
+  if (!lit) return;
+  perkLitAt = now;
+  const count = perkOptions.length + 1;
+  const index = perkOptions.findIndex((p) => p.id === lit.id);
+  announce('guide-option', { label: lit.label, index: (index < 0 ? perkOptions.length : index) + 1, count });
+}
+
+function perkPress(now: number): void {
+  if (!perkScan || now < perkResumeAt || perkLitAt < 0) return;
+  const chosen = perkScan.press();
+  if (!chosen) return;
+  const perk = perkOptions.find((p) => p.id === chosen.id) ?? null;
+  save(PERK_KEY, perk ? perk.id : '');
+  perkScan = null;
+  say(perkChosen(perk));
+  // The words are said while the house loads; the introduction follows them.
+  start();
 }
 
 // ---- the sound guide ------------------------------------------------------------
@@ -449,7 +516,11 @@ function start(): void {
   wasClose = false;
   nextHeartAt = startedAt;
   roomSoundAt.clear();
-  const intro = { type: 'intro', at: 0, data: { line: MABEL.intro + lengthNote(size) } };
+  // A perk chosen at the end of the last run applies to this run only: it is read, then cleared, so it cannot carry on.
+  const perk = readPerk(saved);
+  if (perk) save(PERK_KEY, '');
+  pendingPerks = [];
+  const intro = { type: 'intro', at: 0, data: { line: MABEL.intro + lengthNote(size) + (perk ? perkStartLine(perk) : '') } };
   walk = createWalk({
     maze: house,
     speed: profile.speed,
@@ -457,7 +528,8 @@ function start(): void {
     dwellMs: profile.dwellMs,
     emit,
     decorate,
-    settings: { hintLabel: 'Ask Mabel: the phantom moves once' },
+    perk,
+    settings: { hintLabel: 'Ask Mabel: the phantom moves once', freeHintLabel: 'Ask Mabel: free this once, the phantom does not move' },
     // The walk waits for each spoken line to finish before it reads out the options.
     speechMs: (event) => spokenMs(event),
     quietMs: spokenMs(intro),
@@ -474,10 +546,19 @@ function runEndFacts(how: RunEnd['how']): RunEnd | null {
   return { how, relicsFound: s.relicsFound, relicsTotal: maze.relics.length, rooms, ms: Math.round(performance.now() - startedAt), catches: s.catches };
 }
 
+/** Which perks the relics found in this run give: a relic's number in RELICS is its perk's number in the table. */
+function earnedPerks(): PerkWords[] {
+  if (!maze || !walk) return [];
+  const left = walk.snapshot().relicsLeft;
+  const found = maze.relics.map((r, i) => i).filter((i) => !left.some((c) => c.x === maze!.relics[i]!.x && c.y === maze!.relics[i]!.y));
+  return perksFor(found);
+}
+
 function finish(): void {
   const end = runEndFacts('escaped');
   if (!maze || !walk || !end || runEnded) return;
   runEnded = true;
+  pendingPerks = earnedPerks();
   const s = walk.snapshot();
   const result = walkResult(maze, s);
   games += 1;
@@ -490,7 +571,7 @@ function finish(): void {
   setTimeout(() => {
     if (mode === 'ended') {
       announce('summary', {
-        facts: runFacts(end),
+        facts: `${runFacts(end)} ${perkOffer(end.relicsFound)}`,
         time: runLengthWords(end.ms),
         rank: result.rank,
         score: result.score,
@@ -507,6 +588,7 @@ function endRunCaught(): void {
   const end = runEndFacts('caught');
   if (!maze || !walk || !end || runEnded) return;
   runEnded = true;
+  pendingPerks = earnedPerks();
   games += 1;
   stats.textContent = `${games} runs, ${escapes} escapes. Best score ${bestScore}. Last: house ${runSeed}, the house let you go, ${end.relicsFound} of ${end.relicsTotal} relics, ${runLengthWords(end.ms)}.`;
   walk = null;
@@ -531,6 +613,8 @@ function toMenu(): void {
   mode = 'menu';
   walk = null;
   guide = null;
+  perkScan = null;
+  pendingPerks = [];
   snapshot = null;
   adapter.cancelPending({ silence: true });
   menus.close();
@@ -640,10 +724,12 @@ function press(): void {
     if (menus.top()) menuPress(now);
     else openMenus(now);
   } else if (mode === 'ended') {
-    // One press, any key: the next run, in a new house.
+    // One press, any key: the next run, in a new house. With relics found, the perk is chosen first.
     guide = null;
-    start();
-  } else if (mode === 'menu') openGuide(now);
+    if (pendingPerks.length > 0) openPerkChoice(now);
+    else start();
+  } else if (mode === 'perk') perkPress(now);
+  else if (mode === 'menu') openGuide(now);
   else if (mode === 'guide') guidePress(now);
   else walk?.press(now);
 }
@@ -782,6 +868,7 @@ function frame(): void {
   adapter.poll();
   const now = performance.now();
   if (mode === 'guide') guideTick(now);
+  if (mode === 'perk') perkTick(now);
   if (mode === 'menu') menus.tick(now);
   if (walk && mode === 'playing') {
     walk.advance(now);

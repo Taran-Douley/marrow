@@ -11,6 +11,15 @@
 
 import type { SpeechMode, SpeechTone } from '../../types';
 
+/** How a line sounds, beyond its words: a character's pitch and pace, preferred voices, and place. */
+export interface LineStyle {
+  tone?: SpeechTone | undefined;
+  /** Browser voices to prefer for this line, best first. */
+  voices?: readonly string[] | undefined;
+  /** -1 (left) to 1 (right). Only a recorded clip can use it; the browser voice cannot be placed. */
+  pan?: number | undefined;
+}
+
 export interface RegionLike {
   /** Add a line of text to the live region. */
   append(text: string): void;
@@ -24,7 +33,7 @@ export interface SynthLike {
 /** Your own voice: an AI voice service, a recorded-voice engine, anything that can say a line. */
 export interface VoiceProvider {
   /** Say the line. Return a promise if it takes time; if it rejects, the next voice speaks instead. */
-  speak(text: string, how: { volume: number; tone?: SpeechTone | undefined }): void | Promise<void>;
+  speak(text: string, how: { volume: number; tone?: SpeechTone | undefined; voices?: readonly string[] | undefined; pan?: number | undefined }): void | Promise<void>;
   /** Stop speaking now. Called when a newer line arrives and on Escape. */
   cancel(): void;
 }
@@ -34,7 +43,7 @@ export interface ClipHandle {
   stop(): void;
   done: Promise<void>;
 }
-export type PlayClip = (url: string, volume: number) => ClipHandle;
+export type PlayClip = (url: string, volume: number, pan?: number) => ClipHandle;
 
 /** Recordings by the exact spoken text, or a function that finds one for a line. */
 export type Clips = Readonly<Record<string, string>> | ((text: string) => string | undefined);
@@ -80,7 +89,7 @@ export interface SpeakerOptions {
   region: RegionLike;
   /** Absent when the Web Speech API is unavailable: the text still goes to the region. */
   synth?: SynthLike | undefined;
-  makeUtterance?: (text: string, volume: number, tone?: SpeechTone) => unknown;
+  makeUtterance?: (text: string, volume: number, tone?: SpeechTone, voices?: readonly string[]) => unknown;
   provider?: VoiceProvider | undefined;
   clips?: Clips | undefined;
   playClip?: PlayClip | undefined;
@@ -106,6 +115,18 @@ export interface SayHow {
   key?: string | undefined;
   /** A character's voice, where the voice allows it. */
   tone?: SpeechTone | undefined;
+  /** Browser voices this line prefers, best first. */
+  voices?: readonly string[] | undefined;
+  /** Where a recorded clip of this line sits, -1 to 1. */
+  pan?: number | undefined;
+  /** Who says it. The live region gets "Name: line"; the voice says only the line. */
+  name?: string | undefined;
+  /**
+   * Called just before the line is said, when it is its turn (a character's signature sound).
+   * Returns how long it takes in ms: the voice starts that much later. It is also called when the
+   * built-in voice is off, so the signature still tells who is speaking; then nothing waits for it.
+   */
+  before?: (() => number) | undefined;
 }
 
 export interface Speaker {
@@ -120,8 +141,8 @@ interface Line {
   text: string;
   volume: number;
   key?: string | undefined;
-  /** A character's voice, where the voice allows it. */
-  tone?: SpeechTone | undefined;
+  style?: LineStyle | undefined;
+  before?: (() => number) | undefined;
 }
 
 /** A line is given up on after this much longer than its guess, in case the voice never reports the end. */
@@ -159,10 +180,10 @@ export function createSpeaker(options: SpeakerOptions): Speaker {
   };
 
   /** Each voice calls `done` when the line has been said (or could not be). */
-  const browserVoice = (text: string, volume: number, done: () => void, tone?: SpeechTone): void => {
+  const browserVoice = (text: string, volume: number, done: () => void, style?: LineStyle): void => {
     if (!synth || !makeUtterance) return done();
     try {
-      const utterance = tone ? makeUtterance(text, volume, tone) : makeUtterance(text, volume);
+      const utterance = style?.voices ? makeUtterance(text, volume, style.tone, style.voices) : style?.tone ? makeUtterance(text, volume, style.tone) : makeUtterance(text, volume);
       const events = utterance as { addEventListener?: (type: string, fn: () => void) => void } | null;
       if (events && typeof events.addEventListener === 'function') {
         events.addEventListener('end', done);
@@ -175,15 +196,15 @@ export function createSpeaker(options: SpeakerOptions): Speaker {
     }
   };
 
-  const recorded = (text: string, volume: number, done: () => void, tone?: SpeechTone): boolean => {
+  const recorded = (text: string, volume: number, done: () => void, style?: LineStyle): boolean => {
     const url = clipFor(text);
     if (!url || !playClip) return false;
     try {
-      const handle = playClip(url, volume);
+      const handle = style?.pan !== undefined ? playClip(url, volume, style.pan) : playClip(url, volume);
       clip = handle;
       // A file that will not load falls back to the next voice instead of silence.
       handle.done.then(done, () => {
-        if (clip === handle) browserVoice(text, volume, done, tone);
+        if (clip === handle) browserVoice(text, volume, done, style);
         else done();
       });
       return true;
@@ -192,13 +213,13 @@ export function createSpeaker(options: SpeakerOptions): Speaker {
     }
   };
 
-  const voice = (text: string, v: number, done: () => void, tone?: SpeechTone): void => {
+  const voice = (text: string, v: number, done: () => void, style?: LineStyle): void => {
     if (provider) {
       try {
-        const result = provider.speak(text, tone ? { volume: v, tone } : { volume: v });
+        const result = provider.speak(text, { volume: v, ...(style?.tone ? { tone: style.tone } : {}), ...(style?.voices ? { voices: style.voices } : {}), ...(style?.pan !== undefined ? { pan: style.pan } : {}) });
         if (result && typeof (result as Promise<void>).then === 'function') {
           (result as Promise<void>).then(done, () => {
-            if (!recorded(text, v, done, tone)) browserVoice(text, v, done, tone);
+            if (!recorded(text, v, done, style)) browserVoice(text, v, done, style);
           });
         }
         // A provider that returns nothing never says when it is done: the guard timer decides.
@@ -207,8 +228,8 @@ export function createSpeaker(options: SpeakerOptions): Speaker {
         // The provider failed: fall through to the next voice.
       }
     }
-    if (recorded(text, v, done, tone)) return;
-    browserVoice(text, v, done, tone);
+    if (recorded(text, v, done, style)) return;
+    browserVoice(text, v, done, style);
   };
 
   const clearGuard = (my: number): void => {
@@ -224,13 +245,31 @@ export function createSpeaker(options: SpeakerOptions): Speaker {
     next();
   };
 
+  const leads = new Map<number, unknown>();
+
   const start = (line: Line): void => {
     const my = ++token;
     current = my;
-    voice(line.text, line.volume, () => finished(my), line.tone);
+    // A signature sound comes first; the voice starts after it, so the two never talk over each other.
+    let lead = 0;
+    try {
+      lead = Math.max(0, line.before?.() ?? 0);
+    } catch {
+      lead = 0; // a signature that cannot play must not lose the line
+    }
+    const say = (): void => voice(line.text, line.volume, () => finished(my), line.style);
+    if (lead > 0) {
+      leads.set(
+        my,
+        timers.set(() => {
+          leads.delete(my);
+          if (current === my) say();
+        }, lead),
+      );
+    } else say();
     // Some voices never report the end: give up on the line a while after its guess.
     if (queue && current === my) {
-      guards.set(my, timers.set(() => finished(my), estimate(line.text) * GUARD_FACTOR + GUARD_EXTRA_MS));
+      guards.set(my, timers.set(() => finished(my), lead + estimate(line.text) * GUARD_FACTOR + GUARD_EXTRA_MS));
     }
   };
 
@@ -243,14 +282,28 @@ export function createSpeaker(options: SpeakerOptions): Speaker {
     current = 0;
     for (const handle of guards.values()) timers.clear(handle);
     guards.clear();
+    for (const handle of leads.values()) timers.clear(handle);
+    leads.clear();
     stopEverything();
   };
 
   return {
     say(text, how) {
-      region.append(text);
-      if (!how.aloud || how.volume <= 0) return;
-      const line: Line = { text, volume: Math.max(0, Math.min(1, how.volume)), key: how.key, tone: how.tone };
+      // The live text says who speaks, so a screen-reader user with the voice off still knows.
+      region.append(how.name ? `${how.name}: ${text}` : text);
+      if (how.volume <= 0) return;
+      if (!how.aloud) {
+        // No built-in voice: the signature still plays, so a player who listens can tell who speaks.
+        try {
+          how.before?.();
+        } catch {
+          // A signature that cannot play loses nothing: the text is already in the region.
+        }
+        return;
+      }
+      const style: LineStyle | undefined =
+        how.tone || how.voices || how.pan !== undefined ? { tone: how.tone, voices: how.voices, pan: how.pan } : undefined;
+      const line: Line = { text, volume: Math.max(0, Math.min(1, how.volume)), key: how.key, style, before: how.before };
       const mode: SpeechMode = queue ? (how.mode ?? 'wait') : 'cut-in';
       if (mode === 'cut-in') {
         // The newest line wins: stop what is being said, forget what was waiting.

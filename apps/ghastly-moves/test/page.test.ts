@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createGhastlyKit } from '../src/kit';
-import { defaultProfile, speechMs } from '@marrow/skeleton';
+import { defaultProfile, totalSpokenMs } from '@marrow/skeleton';
 import { STAGES, needed } from '../src/stages';
 
 // Loads the real page and main.ts in a simulated browser, with fakes for the
@@ -390,7 +390,7 @@ describe('the story', () => {
     const lv = kit.generate(seed, { count });
     const { halfWidth, airtime, rates } = kit.timing;
     // The game holds the first countdown until the introduction has been said, so the level starts late by that much.
-    const words = intro ? kit.render(intro).reduce((sum, c) => sum + (c.channel === 'speech' ? speechMs(c.text) : 0), 0) : 0;
+    const words = intro ? totalSpokenMs(kit.render(intro)) : 0;
     const firstCue = ((lv.obstacles[0]!.start - halfWidth + (lv.obstacles[0]!.start + lv.obstacles[0]!.width + halfWidth - airtime)) / 2 - 3 * kit.timing.beat) / rates.slow * 1000;
     const hold = words === 0 ? 0 : Math.max(0, Math.round(words * 1.2) + 300 - (wholeHold ? 0 : firstCue));
     const startedAt = page.clock.ms + hold;
@@ -434,8 +434,10 @@ describe('the story', () => {
     vi.advanceTimersByTime(1300);
     // A stage is as long as its song.
     const songLength = stageKit.generate(1).obstacles.length;
-    expect(page.region().at(-1)).toMatch(new RegExp(`Pumpkin Patch done\\. ${songLength} of ${songLength} right\\. Rank S\\.`));
-    expect(page.region().at(-1)).toMatch(/Pumpkin Patch done\. \d+ of \d+ right\. Rank S\. The Pumpkin King rises.*Press any key to fight The Pumpkin King\./);
+    // Three lines in the log: the narrator, the boss taunting under its own name, then the narrator again.
+    const clear = page.region().slice(-3).join(' ');
+    expect(clear).toMatch(new RegExp(`Pumpkin Patch done\\. ${songLength} of ${songLength} right\\. Rank S\\.`));
+    expect(clear).toMatch(/Pumpkin Patch done\. \d+ of \d+ right\. Rank S\. The Pumpkin King: The Pumpkin King rises.*Press any key to fight The Pumpkin King\./);
 
     page.frames(1600);
     page.key('Space', ' ');
