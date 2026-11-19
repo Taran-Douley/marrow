@@ -1,5 +1,7 @@
 import { createKit, type Kit, type Lesson } from '@marrow/skeleton';
 import { timesTable } from './lessons';
+import { useObject } from '@marrow/skeleton/catalogue';
+import { OBJECTS } from './objects/index.generated';
 import { defineGate, defineSpike } from './objects/moves';
 import { defineProjectile } from './objects/projectile';
 import { defineStone } from './objects/stone';
@@ -100,5 +102,8 @@ export function createGhastlyKit(what: number | Stage | Lesson, options: Ghastly
   const kinds = new Set(song?.song.sections.flatMap((s) => s.kinds ?? []) ?? []);
   if (kinds.has('spike')) defineSpike(kit);
   if (kinds.has('gate')) defineGate(kit);
+  // Objects added as files in src/objects/ are wired in by the Kiro hook. They join the jump parts.
+  // Defined last, so the built-in objects keep their own sounds.
+  if (!boss) for (const o of OBJECTS) useObject(kit, o);
   return kit;
 }

@@ -149,7 +149,7 @@ function checkHookFile(path: string): void {
 describe('the hooks', () => {
   it('this repository\u2019s hooks and the power\u2019s templates follow the v1 format', () => {
     const repoHooks = readdirSync(join(root, '.kiro', 'hooks')).filter((f) => f.endsWith('.json'));
-    expect(repoHooks.sort()).toEqual(['core-change-tests.json', 'no-fully-accessible.json', 'proof-on-object-save.json', 'store-list-report.json', 'usage-log-after-task.json']);
+    expect(repoHooks.sort()).toEqual(['core-change-tests.json', 'no-fully-accessible.json', 'proof-on-object-save.json', 'store-list-report.json', 'usage-log-after-task.json', 'wire-new-object.json']);
     for (const f of repoHooks) checkHookFile(join(root, '.kiro', 'hooks', f));
     for (const f of readdirSync(join(power, 'templates', 'hooks'))) checkHookFile(join(power, 'templates', 'hooks', f));
   });
@@ -157,9 +157,16 @@ describe('the hooks', () => {
   it('the proof hook fires on an object file and not on an unrelated one, on both path styles', () => {
     const hook = json(root, '.kiro', 'hooks', 'proof-on-object-save.json').hooks[0];
     const re = new RegExp(hook.matcher);
-    for (const yes of ['apps/ghastly-moves/src/objects/stone.ts', 'apps\\seance-escape\\src\\stages.ts', 'apps/ghastly-moves/src/kit.ts']) expect(re.test(yes), yes).toBe(true);
+    for (const yes of ['apps\\seance-escape\\src\\stages.ts', 'apps/ghastly-moves/src/kit.ts']) expect(re.test(yes), yes).toBe(true);
     for (const no of ['docs/readme.md', 'apps/ghastly-moves/test/page.test.ts', 'skeleton/src/index.ts']) expect(re.test(no), no).toBe(false);
     expect(hook.action.command).toBe('npm test --workspace apps/ghastly-moves --workspace apps/seance-escape');
+    // Object files have their own hook: it wires them in, then proves them.
+    for (const wire of json(root, '.kiro', 'hooks', 'wire-new-object.json').hooks) {
+      const w = new RegExp(wire.matcher);
+      for (const yes of ['apps/ghastly-moves/src/objects/crypt.ts', 'apps\\ghastly-moves\\src\\objects\\crypt.ts']) expect(w.test(yes), yes).toBe(true);
+      for (const no of ['apps/ghastly-moves/src/objects/index.generated.ts', 'apps/ghastly-moves/src/kit.ts']) expect(w.test(no), no).toBe(false);
+      expect(wire.action.command).toBe('node scripts/wire-objects.mjs --prove');
+    }
   });
 
   it('the core hook fires on a skeleton file, and the store-list hook runs the report scripts that exist', () => {

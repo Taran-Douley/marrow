@@ -23,6 +23,8 @@ import { createProfileStore, type ProfileStore, type StorageLike } from './stora
 import { createVisual, drawCaptionBox, type Rect, type Visual, type WebStyle } from './visual';
 
 export { createSoundPlayer } from './sound';
+export { createGame } from './game';
+export type { Game, GameOptions } from './game';
 export { fingerprint, registerOffline, serviceWorkerSource } from './offline';
 export type { ServiceWorkerOptions } from './offline';
 export { chooseVoice, clipsBySlug, createSpeaker, regionFromElement, slugOf } from './speech';
