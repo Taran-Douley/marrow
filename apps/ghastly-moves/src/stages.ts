@@ -1,4 +1,5 @@
 import type { Lesson, TrackSpec } from '@marrow/skeleton';
+import { PUMPKIN_PATTERN, type BossPattern } from './pattern';
 import { SONGS, type StageSong } from './songs';
 import { TRACKS, bossTrack } from './tracks';
 
@@ -25,7 +26,7 @@ export interface Projectile {
   /** What the player hears and reads: 'pumpkin bomb'. */
   label: string;
   colour: string;
-  shape: 'round' | 'bone' | 'star' | 'bat';
+  shape: 'round' | 'bone' | 'star' | 'bat' | 'bomb';
 }
 
 export interface Boss {
@@ -33,6 +34,12 @@ export interface Boss {
   look: BossLook;
   /** What the boss throws. Jump over the ones that fit the rule; the others are duds that fly through you. */
   projectile: Projectile;
+  /**
+   * A fixed attack pattern, read by sound alone: volleys of different throws, each with its own sound,
+   * and a tell before each volley. The fight is then a song, so `count` is only a rough size; the
+   * throws are whatever the song holds. Without one, the boss throws `projectile` at a steady pace.
+   */
+  pattern?: BossPattern;
   /** Said when the boss appears. */
   taunt: string;
   lesson: Lesson;
@@ -150,7 +157,8 @@ export const STAGES: readonly Stage[] = [
     boss: {
       name: 'The Pumpkin King',
       look: 'pumpkin',
-      projectile: { name: 'pumpkin-bomb', label: 'pumpkin bomb', colour: '#ff9a2e', shape: 'round' },
+      projectile: { name: 'pumpkin-bomb', label: 'pumpkin bomb', colour: '#ff9a2e', shape: 'bomb' },
+      pattern: PUMPKIN_PATTERN,
       taunt: 'The Pumpkin King rises from the vines. Big even numbers now!',
       lesson: evenNumbers([100, 400], 'Boss: The Pumpkin King'),
       count: 12,
@@ -301,7 +309,7 @@ export const STAGES: readonly Stage[] = [
 export const stageById = (id: number): Stage | undefined => STAGES.find((s) => s.id === id);
 
 /** How many stones must be right to beat a boss. */
-export const needed = (boss: Boss): number => Math.ceil(boss.need * boss.count);
+export const needed = (boss: Boss, count: number = boss.count): number => Math.ceil(boss.need * count);
 
 /** The track for a boss: the stage's tune, lower and heavier. */
 export const bossTrackOf = (stage: Stage): TrackSpec => bossTrack(stage.track);
@@ -309,6 +317,11 @@ export const bossTrackOf = (stage: Stage): TrackSpec => bossTrack(stage.track);
 /** What the player is told at the start of a boss fight: what to jump, and what to let fly through. */
 export function bossPrompt(stage: Stage): string {
   const p = stage.boss.projectile.label;
+  if (stage.boss.pattern) {
+    // A pattern boss: say how to read it by ear, then what to jump.
+    const sounds = stage.boss.pattern.throws.map((t) => `${t.tell.hz >= 300 ? 'A rising sound' : 'A low rumble'} means ${t.label}s`);
+    return `Jump over every bomb with ${stage.ruleWords}. The others are duds: let them fly through you. Before each volley you hear what is coming. ${sounds.join('. ')}. Every right move hurts ${stage.boss.name}.`;
+  }
   return `Jump over every ${p} with ${stage.ruleWords}. The others are duds: let them fly through you. Every right move hurts ${stage.boss.name}.`;
 }
 

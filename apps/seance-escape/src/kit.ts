@@ -99,9 +99,19 @@ export function createSeanceKit(options: SeanceKitOptions = {}): Kit {
         speech: 'cut-in',
         caption: 'Press any key to begin',
       },
+      // A run won: you escaped. The facts of the run, then the next house is one press away.
       summary: {
-        say: 'You escaped and banished the phantom! Rank {rank}. {score} points. Caught {catches} times. You heard {whispers} of {whisperTotal} whispers. Press any key to play again.',
-        caption: 'Rank {rank}: {score} points. Caught {catches} times.',
+        say: 'You escaped and banished the phantom! {facts} Rank {rank}, {score} points. You heard {whispers} of {whisperTotal} whispers. Press any key to enter a new house, or Escape for the menu.',
+        caption: 'Escaped! Rank {rank}: {score} points. {time}. Caught {catches} times.',
+        sound: { hz: 523, wave: 'sine', gain: 0.6, role: 'reward', shape: { hzTo: 784, seconds: 1.2 } },
+        haptic: [60, 60, 120],
+      },
+      // A run ended by three catches. Told gently: the house lets you go. Never "game over", never a scare.
+      'run-end': {
+        say: '{line}',
+        caption: '{caption}',
+        sound: { hz: 392, wave: 'sine', gain: 0.45, role: 'effect', shape: { hzTo: 262, filterHz: 1200, seconds: 1.8 } },
+        haptic: [60, 80, 60],
       },
 
       // The sound guide, before the house: choose a sound to hear it.

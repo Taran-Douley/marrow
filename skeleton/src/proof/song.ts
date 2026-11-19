@@ -3,6 +3,7 @@ import type { Lesson } from '../lesson';
 import { phrase } from '../channels/phrases';
 import { speechMs } from '../scanning';
 import { barSeconds, moveAt } from '../song';
+import { lockedToTheSong } from './rhythm';
 import { proofResult } from './timing';
 import type { ProofInput, ProofProperty, ProofResult } from './types';
 
@@ -125,5 +126,5 @@ export function gateWordsInTime(level: Level, input: ProofInput): ProofResult {
 
 /** The song properties as extras for `prove`. */
 export function songProperties(lesson?: Lesson): ProofProperty[] {
-  return [restsAreRests, portalsGiveWarning, gatesHaveOneRightLane(lesson), gateWordsInTime];
+  return [restsAreRests, portalsGiveWarning, gatesHaveOneRightLane(lesson), gateWordsInTime, lockedToTheSong];
 }

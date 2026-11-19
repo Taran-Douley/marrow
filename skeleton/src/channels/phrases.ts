@@ -15,6 +15,8 @@ export const PHRASES = {
   number: '{value}',
   /** Pressed on something that should have been let pass. */
   fallWrong: 'Not that one.',
+  /** After a fall at an obstacle already fallen at: the short reason, then the try number (only with `run.explainOnce`). */
+  fallAttempt: 'Attempt {attempt}.',
   /** The fourth beat in a lesson: it must not give away whether to press. */
   yourMove: 'Your move',
   perfect: 'Perfect',

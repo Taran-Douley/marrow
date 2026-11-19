@@ -51,7 +51,7 @@ describe('every object and level passes the proof before it is merged (structure
       const kit = createGhastlyKit(n);
       for (let seed = 1; seed <= 30; seed++) {
         const results = kit.prove(kit.generate(seed));
-        expect(results.map((r) => r.id)).toEqual([1, 2, 3, 4, 5, 6, 101]);
+        expect(results.map((r) => r.id)).toEqual([1, 2, 3, 4, 5, 6, 101, 20]); // 20: instant retry
         expect(results.filter((r) => !r.pass).map((r) => r.counterexample), `table ${n}, level ${seed}`).toEqual([]);
         expect(() => kit.refuseIfFailing(kit.generate(seed), `Level ${seed}`)).not.toThrow();
       }
@@ -150,13 +150,13 @@ describe('playing it', () => {
     // The first distractor stops the run with an explanation; the player has not finished.
     expect(run.snapshot().phase).toBe('recover');
     expect(types).toContain(EVENT_TYPES.fallReason);
-    expect(heard.some((t) => /^Not that one\. \d+ is not a multiple of 3\.$/.test(t))).toBe(true);
+    expect(heard.some((t) => /^Wrong number\. \d+ is not a multiple of 3\.$/.test(t))).toBe(true);
   });
 
   it('a player who never presses is told which numbers they missed', () => {
     const { run, heard } = play(3, 1, () => null);
     expect(run.snapshot().phase).toBe('recover');
-    expect(heard.some((t) => /^No press\. \d+ is a multiple of 3: \d+ times 3\.$/.test(t))).toBe(true);
+    expect(heard.some((t) => /^Missed\. \d+ is a multiple of 3: \d+ times 3\.$/.test(t))).toBe(true);
   });
 });
 

@@ -4,7 +4,7 @@ Made by a test, never by hand. `npm run proof-report --workspace apps/ghastly-mo
 
 **2800 of 2800 generated levels passed every property.** The game refuses to serve any level that does not.
 
-Properties checked: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 101, 103, 104.
+Properties checked: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 19, 20, 21, 22, 23, 101, 103, 104.
 
 Smallest take-off window across all levels: **717 ms at Slow, 538 ms at Medium, 430 ms at Fast.** The floors are 650 ms at Slow and 400 ms at Fast.
 

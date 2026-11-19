@@ -10,6 +10,7 @@ import {
   createSessionLog,
   mergeProfile,
   speechMs,
+  wordsHoldMs,
   type Attempt,
   type Kit,
   type Level,
@@ -23,7 +24,22 @@ import { clipsBySlug, createWebAdapter, drawMenu, registerOffline } from '@marro
 import { createGhastlyKit } from './kit';
 import { TABLES } from './lessons';
 import { drawMap } from './map';
-import { describeNext, itemsWon, mapLines, nextStage, parseProgress, withBoss, withRank, type Progress } from './progress';
+import { bossTells, throwByName, THROW_LEAD, type Tell } from './pattern';
+import {
+  describeNext,
+  farKey,
+  itemsWon,
+  mapLines,
+  nextStage,
+  parseFar,
+  parseProgress,
+  percentPassed,
+  withBoss,
+  withFar,
+  withRank,
+  type Far,
+  type Progress,
+} from './progress';
 import { HEIGHT, WIDTH, drawScene, type BossState } from './scene';
 import { STAGES, needed, stageById, type Stage } from './stages';
 
@@ -42,6 +58,7 @@ const VOICE_KEY = 'ghastly.voice';
 const TABLE_KEY = 'ghastly.table';
 const STAGE_KEY = 'ghastly.stage';
 const PROGRESS_KEY = 'ghastly.progress';
+const FAR_KEY = 'ghastly.far';
 
 /** Read a saved choice, if storage lets us. A blocked or empty store just means the default. */
 function saved(key: string): string | null {
@@ -125,6 +142,47 @@ let falling = false;
 let lockoutUntil = 0;
 let attemptsAtStart = 0;
 
+// How the run is going: progress, attempt and best, for the canvas, the live region and the new-best sound.
+let far: Far = parseFar(saved(FAR_KEY));
+let farNow = 't3';
+let newBestPlayed = false;
+/** The best saved when this attempt began, so "new best" means beating what was there. */
+let bestAtAttempt = 0;
+let lastFalls = 0;
+let tells: Tell[] = [];
+let tellIndex = 0;
+
+const bestNow = (): number => far[farNow] ?? 0;
+const totalObstacles = (): number => level?.obstacles.length ?? 0;
+const passedNow = (snap: RunSnapshot): number => (snap.phase === 'done' ? totalObstacles() : snap.obstacle + (snap.jumpedAt !== null ? 1 : 0));
+const percentNow = (snap: RunSnapshot | null): number => (snap ? percentPassed(passedNow(snap), totalObstacles()) : 0);
+
+/** The numbers at a fall, said to the live region only: the short reason is what is spoken. */
+function announceStats(snap: RunSnapshot): void {
+  announce('run-stats', { attempt: snap.falls + 1, percent: percentNow(snap), best: bestNow() }, false);
+}
+
+/** Keep the best, and play the new-best sound once an attempt when the clean stretch beats the old one. */
+function trackBest(snap: RunSnapshot): void {
+  if (snap.falls !== lastFalls) {
+    lastFalls = snap.falls;
+    newBestPlayed = false;
+    bestAtAttempt = bestNow();
+    announceStats(snap);
+  }
+  if (falling) return;
+  const pct = percentNow(snap);
+  if (pct > bestNow()) {
+    // Only a best that was there before is beaten: the very first run has nothing to beat.
+    if (!newBestPlayed && bestAtAttempt > 0 && pct > bestAtAttempt) {
+      newBestPlayed = true;
+      announce('new-best', { percent: pct });
+    }
+    far = withFar(far, farNow, pct);
+    save(FAR_KEY, JSON.stringify(far));
+  }
+}
+
 const speedSelect = element<HTMLSelectElement>('speed');
 const pictureBox = element<HTMLInputElement>('picture');
 const voiceBox = element<HTMLInputElement>('voice');
@@ -196,8 +254,10 @@ function emit(event: SemanticEvent, now: number): void {
   adapter.perform(kit.render(event, profile), { now, rate: rate() }, profile);
   if (event.type === EVENT_TYPES.fallReason) {
     falling = true;
-    // The reason and the lesson are heard in full before the countdown comes back.
-    run?.holdForWords(performance.now(), wordsMs(event));
+    // The first fall at an obstacle: the reason and the lesson are heard in full before the countdown
+    // comes back, so that retry may wait for the words. A repeat fall says only the short reason and the
+    // attempt, and play does not wait for them (property 20).
+    if (event.data?.again !== true) run?.holdForWords(performance.now(), wordsMs(event));
   }
   // A new move: its words are heard in full before the first countdown in it, and no longer than that.
   if (event.type === EVENT_TYPES.portal) run?.holdForWords(performance.now() + Math.max(0, ((event.at - now) / rate()) * 1000), wordsMs(event));
@@ -214,8 +274,6 @@ function emit(event: SemanticEvent, now: number): void {
 /** The boss's state while a fight is on. Every right move is a hit. At zero the boss falls. */
 let boss: BossState | null = null;
 let bossDown = false;
-/** How long before the first beep the boss throws, in running seconds, so the whoosh never sits on a beep. */
-const THROW_LEAD = 0.3;
 
 /** The boss reacts to the fight: it throws as each projectile comes, groans when hit, laughs at a mistake. */
 function bossReacts(event: SemanticEvent, now: number): void {
@@ -227,7 +285,9 @@ function bossReacts(event: SemanticEvent, now: number): void {
   };
   if (event.type === EVENT_TYPES.approaching) {
     const at = Math.max(now, event.at - THROW_LEAD);
-    say('boss-throw', at);
+    // A pattern boss has a throw sound for each kind; the others have one.
+    const kind = stage.boss.pattern ? throwByName(stage.boss.pattern, String(event.data?.object ?? '')) : undefined;
+    say(kind ? `boss-throw-${kind.id}` : 'boss-throw', at);
     boss.throwAt = realNow + ((at - now) / rate()) * 1000;
   } else if (event.type === EVENT_TYPES.judged || event.type === EVENT_TYPES.passed) {
     boss.health = Math.max(0, boss.health - 1);
@@ -243,7 +303,7 @@ function bossReacts(event: SemanticEvent, now: number): void {
 /** How long an event's words take to say, with a little to spare, because voices differ in speed. */
 function wordsMs(event: SemanticEvent): number {
   const ms = kit.render(event, profile).reduce((sum, c) => sum + (c.channel === 'speech' ? speechMs(c.text) : 0), 0);
-  return ms === 0 ? 0 : Math.round(ms * 1.2) + 300;
+  return wordsHoldMs(ms);
 }
 
 /** Say something that is not part of a level, such as the menu or a result. */
@@ -307,6 +367,12 @@ function start(what: Kind): void {
   adapter.visual.reset();
   musicKit = null; // the level brings its own music; the map's tune starts again afterwards
   falling = false;
+  farNow = farKey(stage?.id, kind === 'boss', selectedTable());
+  newBestPlayed = false;
+  bestAtAttempt = bestNow();
+  lastFalls = 0;
+  tells = kind === 'boss' && stage?.boss.pattern ? bossTells(level) : [];
+  tellIndex = 0;
   lastSnapshot = null;
   attemptsAtStart = log.entries().length;
   mode = 'playing';
@@ -324,17 +390,25 @@ function start(what: Kind): void {
       showStats();
 
     },
-    onRestart: () => {
+    onRestart: (levelTime: number) => {
       adapter.cancelPending(); // sounds scheduled for the old try no longer apply
       falling = false;
+      // A tell already heard is not told again: the next one is the first that is still ahead.
+      const ahead = tells.findIndex((x) => x.at >= levelTime - 1e-9);
+      tellIndex = ahead < 0 ? tells.length : ahead;
     },
   });
   if (kind === 'boss' && stage) {
-    boss = { look: stage.boss.look, name: stage.boss.name, health: needed(stage.boss), max: needed(stage.boss), throwAt: -1e9, hurtAt: -1e9, laughAt: -1e9 };
+    // A pattern boss is a song, so how many throws there are comes from the song.
+    const need = needed(stage.boss, total);
+    boss = { look: stage.boss.look, name: stage.boss.name, health: need, max: need, throwAt: -1e9, hurtAt: -1e9, laughAt: -1e9 };
     bossDown = false;
-    const intro = { boss: stage.boss.name, need: needed(stage.boss), total, prompt: kit.lesson?.prompt ?? '' };
+    const intro = { boss: stage.boss.name, need, total, prompt: kit.lesson?.prompt ?? '' };
     announce('boss-intro', intro);
-    run.holdForWords(performance.now(), wordsMs({ type: 'boss-intro', at: 0, data: intro }));
+    const introMs = wordsMs({ type: 'boss-intro', at: 0, data: intro });
+    // With a pattern, the first tell comes soon after the start, so the whole introduction is heard first.
+    if (stage.boss.pattern) run.holdUntil(performance.now() + introMs);
+    else run.holdForWords(performance.now(), introMs);
   } else {
     boss = null;
     announce('intro', { prompt: kit.lesson?.prompt ?? '' });
@@ -370,7 +444,7 @@ function finish(): void {
       }
     }, 1200);
   } else if (was === 'boss' && played) {
-    const need = needed(played.boss);
+    const need = boss?.max ?? needed(played.boss);
     const hits = boss ? boss.max - boss.health : right;
     const won = hits >= need;
     boss = null;
@@ -614,6 +688,18 @@ function holdMusic(nowReal: number, held: boolean): void {
   holdBarReal += (2 / r) * 1000;
 }
 
+/**
+ * The boss's tells: one in the rest before each volley, sent a quarter of a second early (as the run
+ * sends its own cues) so the sound lands on time. The event's time is the tell's own, on level time.
+ */
+const TELL_LOOKAHEAD = 0.25;
+function sendTells(t: number): void {
+  while (boss && tellIndex < tells.length && tells[tellIndex]!.at <= t + TELL_LOOKAHEAD) {
+    const tell = tells[tellIndex++]!;
+    adapter.perform(kit.render({ type: `boss-tell-${tell.id}`, at: tell.at }, profile), { now: t, rate: rate() }, profile);
+  }
+}
+
 function frame(): void {
   adapter.poll();
   const now = performance.now();
@@ -621,6 +707,8 @@ function frame(): void {
     run.advance(now);
     lastSnapshot = run.snapshot();
     holdMusic(now, lastSnapshot.held);
+    trackBest(lastSnapshot);
+    sendTells(lastSnapshot.t);
     // The boss falls as soon as its last hit has landed; otherwise the fight ends with the level.
     if (bossDown && boss && now - boss.hurtAt > 700) {
       adapter.cancelPending();
@@ -643,6 +731,7 @@ function frame(): void {
         hud,
         items: itemsWon(progress).map((i) => i.id),
         boss,
+        stats: lastSnapshot ? { percent: percentNow(lastSnapshot), attempt: lastSnapshot.falls + 1, best: Math.max(bestNow(), percentNow(lastSnapshot)) } : null,
       });
     } else {
       drawMap(ctx!, profile, { progress, selected: selectedStage()?.id ?? 0, nowMs: now });

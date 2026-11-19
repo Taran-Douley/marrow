@@ -29,8 +29,18 @@ export {
   phantomStart,
   phantomTurn,
   simulateRitual,
+  proveRunLength,
+  exploreHouse,
+  estimateRunMs,
+  runLengthWords,
+  lineMs,
+  DEFAULT_RUN_LINES,
+  RUN_BAND,
+  RUN_PROFILES,
+  RUN_SPEEDS,
+  RUN_DWELLS,
 } from './navigation';
-export type { PhantomState, PhantomNews } from './navigation';
+export type { PhantomState, PhantomNews, ProveMazeOptions, RunLengthOptions, Exploration, ExploreOptions, RunLines, RunProfile } from './navigation';
 export type { Maze, MazeOptions, Cell, Dir, Walk, WalkOptions, WalkSnapshot, WalkSettings, WalkSettingsInput } from './navigation';
 export {
   aimTimes,
@@ -56,7 +66,9 @@ export type { Acoustics, SoundRecipe } from './channels/audio';
 export { withAcoustics } from './channels/audio';
 export { coachInTime } from './proof';
 export { DEFAULT_SPEECH_PACE, nearest, speechPace } from './scale';
-export { coachTimes } from './run';
+export { coachTimes, wordsHoldMs } from './run';
+export { MAX_PULSES_PER_SECOND, PULSE_MAX_ALPHA, pulseAt, pulsesPerSecond } from './pulse';
+export { RETRY_LIMIT_MS, lockedToTheSong, pulsesGentle, retryDelays, retryInTime } from './proof';
 export type { CoachLine } from './run';
 export { BACK_ID, PROFILE_SETTINGS, SETUP_CHOICES, createMenuStack, applySetting, applySetup, createMenu, entryLabel, menuAudible, profileEntries, setupEntries } from './menu';
 export type { Menu, MenuStack, MenuStackOptions, MenuChoice, MenuEntry, MenuLit, MenuOptions, MenuResult } from './menu';

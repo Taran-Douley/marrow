@@ -53,7 +53,7 @@
         gamepad button when you hear the one you want. Nothing is timed while you choose. The phantom cannot
         see: it listens. If it hears you, hide in a wardrobe, or get far away. Mabel, a friendly ghost, will
         point the way if you ask. The first press opens a sound guide that plays every sound that matters.
-        Everything is also spoken and written for screen readers and braille displays. Headphones help a lot.
+        Three catches end a run: the house lets you go, and one press enters a new house. You can turn that off. Each run is a new house, about 5 to 8 minutes long. Everything is also spoken and written for screen readers and braille displays. Headphones help a lot.
       </p>
 
       <div id="view" class="view">
@@ -79,14 +79,15 @@
         </label>
         <label><input type="checkbox" id="picture" />Picture on</label>
         <label><input type="checkbox" id="voice" />Built-in voice on</label>
+        <label><input type="checkbox" id="catches" checked />Catches end a run (three catches)</label>
         <label>Voice (this browser)
           <select id="voicepick"><option value="">Best natural voice (automatic)</option></select>
         </label>
         <label>House size
           <select id="size">
-            <option value="small">Small</option>
-            <option value="medium">Medium</option>
-            <option value="large">Large</option>
+            <option value="small">Small: a shorter run</option>
+            <option value="medium">Medium: 5 to 8 minutes</option>
+            <option value="large">Large: a longer run</option>
           </select>
         </label>
         <label>Fright
@@ -96,7 +97,7 @@
             <option value="off">Off: no jump scares</option>
           </select>
         </label>
-        <label>House number
+        <label>House number (a new one each run)
           <input type="number" id="level" min="1" max="999999" value="1" />
         </label>
         <button type="button" id="start">Start</button>

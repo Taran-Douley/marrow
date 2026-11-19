@@ -10,6 +10,7 @@ import {
   type SemanticEvent,
 } from '@marrow/skeleton';
 import { createSeanceKit } from '../src/kit';
+import { STANDARD_SIZE, serveHouse } from '../src/runs';
 
 // The accessibility feature list for Séance Escape, made from what its kit guarantees and kept in docs/.
 // `npm run report --workspace apps/seance-escape` rewrites it.
@@ -17,9 +18,13 @@ import { createSeanceKit } from '../src/kit';
 function build() {
   const kit = createSeanceKit();
   // The houses the game serves: with the ritual (relics, hiding, the chase), so 205 and 206 are in the list too.
-  const houses = [8, 10].flatMap((side) =>
-    Array.from({ length: 15 }, (_, i) => proveMaze(generateMaze(i + 1, { width: side, height: side, relics: 3 }))),
-  );
+  // They are the houses a run is served, so the run length (207) is in the list too.
+  let counter = 1;
+  const houses = Array.from({ length: 15 }, () => {
+    const served = serveHouse(counter, STANDARD_SIZE)!;
+    counter = served.seed + 1;
+    return proveMaze(served.maze, `House ${served.seed}`, { runLength: true });
+  });
   const at = (type: string, data?: Record<string, unknown>): SemanticEvent => (data ? { type, at: 0, data } : { type, at: 0 });
   const commands = [
     ...kit.render(at('atmosphere', { bar: 0, tension: 0.8, span: 2 })),

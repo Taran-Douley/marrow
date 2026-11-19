@@ -16,6 +16,7 @@ import {
 } from 'three';
 import type { Maze, WalkSnapshot } from '@marrow/skeleton';
 import type { RoomInfo } from './content';
+import { glow } from './glow';
 import { CELL, EYE_HEIGHT, buildHouse, cellCentre, ease, paintTextures, shortestAngle, yawFor, type House } from './world';
 
 // The first-person view. It only shows what the walk already says: the camera goes where the
@@ -39,6 +40,17 @@ export interface View3d {
 
 /** Wrap a distance from the player into [-size/2, size/2), so a field of specks follows the player forever. */
 export const wrapRelative = (value: number, size: number): number => (((value + size / 2) % size) + size) % size - size / 2;
+
+/**
+ * Angular speeds (radians a second) of every light flicker. Nothing flickers more than 3 times a second
+ * (see accessibility.md), and with reduced motion nothing flickers at all. `flame` is under an absolute
+ * value, so it counts twice.
+ */
+export const FLICKER = { lantern: [13, 7.3], torch: [9, 17], flame: 7 } as const;
+export const MAX_FLICKER_HZ = 3;
+/** The fastest flicker in the view, in times a second. */
+export const fastestFlickerHz = (): number =>
+  Math.max(...FLICKER.lantern.map((w) => w / (2 * Math.PI)), ...FLICKER.torch.map((w) => w / (2 * Math.PI)), FLICKER.flame / Math.PI);
 
 const DUST_COUNT = 160;
 const DUST_BOX = 14;
@@ -82,6 +94,50 @@ function makeDust(): { points: Points; update(x: number, z: number, t: number, c
   };
 }
 
+const MIST_COUNT = 36;
+const MIST_BOX = 20;
+
+function makeMist(): { points: Points; update(x: number, z: number, t: number, calm: boolean): void } {
+  const base = new Float32Array(MIST_COUNT * 3);
+  let seed = 777;
+  const rand = (): number => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let i = 0; i < MIST_COUNT; i++) {
+    base[i * 3] = rand() * 1000;
+    base[i * 3 + 1] = 0.15 + rand() * 0.7;
+    base[i * 3 + 2] = rand() * 1000;
+  }
+  const positions = new Float32Array(MIST_COUNT * 3);
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(positions, 3));
+  const map = glow();
+  const material = new PointsMaterial({
+    color: 0x8f86a0,
+    size: 3.2,
+    ...(map ? { map } : {}),
+    transparent: true,
+    opacity: 0.09,
+    depthWrite: false,
+  });
+  const points = new Points(geometry, material);
+  points.frustumCulled = false;
+  return {
+    points,
+    update(x, z, t, calm) {
+      for (let i = 0; i < MIST_COUNT; i++) {
+        // Slow drift, well under a cycle a second; none at all with reduced motion.
+        const drift = calm ? 0 : Math.sin(t * 0.08 + i) * 0.6;
+        positions[i * 3] = x + wrapRelative(base[i * 3]! + drift - x, MIST_BOX);
+        positions[i * 3 + 1] = base[i * 3 + 1]!;
+        positions[i * 3 + 2] = z + wrapRelative(base[i * 3 + 2]! + drift - z, MIST_BOX);
+      }
+      geometry.attributes.position!.needsUpdate = true;
+    },
+  };
+}
+
 /** The angle of the lit option from straight ahead, in degrees. 0 when nothing is lit or the option has no direction. */
 export function lookAngleOf(snapshot: Pick<WalkSnapshot, 'phase' | 'options' | 'lit'>): number {
   if (snapshot.phase !== 'choosing' || !snapshot.lit) return 0;
@@ -110,10 +166,11 @@ export function createView3d(canvas: HTMLCanvasElement, maze: Maze, rooms?: read
   renderer.toneMappingExposure = 1.15;
 
   const scene = new Scene();
-  scene.background = new Color(0x020105);
-  // Dark: the house is lit only by its torches, your lantern, and the phantom's own glow.
-  scene.fog = new FogExp2(0x030208, 0.08);
-  scene.add(new HemisphereLight(0x1c2240, 0x0a0606, 0.12));
+  scene.background = new Color(0x060306);
+  // Dark: the house is lit only by its torches, your lantern, and the phantom's own glow. The fog is
+  // a warm near-black, so far rooms melt into the dark and the lantern's light has depth.
+  scene.fog = new FogExp2(0x060306, 0.072);
+  scene.add(new HemisphereLight(0x2a2438, 0x120a06, 0.14));
 
   const textures = paintTextures(maze.seed);
   const house: House = buildHouse(maze, textures, rooms);
@@ -130,7 +187,7 @@ export function createView3d(canvas: HTMLCanvasElement, maze: Maze, rooms?: read
 
   const camera = new PerspectiveCamera(72, canvas.width / canvas.height, 0.05, 80);
   camera.rotation.order = 'YXZ';
-  const lantern = new PointLight(0xffb057, 15, 10, 2);
+  const lantern = new PointLight(0xffa04a, 15, 10, 2); // a warm oil-lamp orange
   camera.add(lantern);
   lantern.position.set(0.28, -0.25, -0.5); // held a little to the right and below the eyes
   scene.add(camera);
@@ -143,6 +200,9 @@ export function createView3d(canvas: HTMLCanvasElement, maze: Maze, rooms?: read
   // the player, so they slide past as you walk. They only drift on their own when motion is allowed.
   const dust = makeDust();
   scene.add(dust.points);
+  // Low mist: a few big, faint puffs near the floor that follow the player, for depth in the fog.
+  const mist = makeMist();
+  scene.add(mist.points);
   let lastMs: number | null = null;
   let dim = 1;
 
@@ -180,7 +240,7 @@ export function createView3d(canvas: HTMLCanvasElement, maze: Maze, rooms?: read
 
       // The lantern dims while you are caught, and flickers a little otherwise.
       dim = ease(dim, s.phase === 'caught' ? 0.15 : 1, dt || 1, 4);
-      const flicker = calm ? 1 : 1 + 0.06 * Math.sin(t * 13) + 0.04 * Math.sin(t * 7.3 + 1);
+      const flicker = calm ? 1 : 1 + 0.06 * Math.sin(t * FLICKER.lantern[0]) + 0.04 * Math.sin(t * FLICKER.lantern[1] + 1);
       lantern.intensity = 15 * dim * flicker;
 
       // The nearest torches, flickering, each in its room's own colour.
@@ -193,9 +253,9 @@ export function createView3d(canvas: HTMLCanvasElement, maze: Maze, rooms?: read
         }
         light.position.set(torch.x, torch.y, torch.z);
         light.color.setHex(torch.colour);
-        const wobble = calm ? 1 : 1 + 0.12 * Math.sin(t * 9 + i * 1.7) + 0.08 * Math.sin(t * 23 + i);
+        const wobble = calm ? 1 : 1 + 0.12 * Math.sin(t * FLICKER.torch[0] + i * 1.7) + 0.08 * Math.sin(t * FLICKER.torch[1] + i);
         light.intensity = 7 * wobble;
-        torch.flame.scale.setScalar(calm ? 1 : 0.9 + 0.2 * Math.abs(Math.sin(t * 11 + i)));
+        torch.flame.scale.setScalar(calm ? 1 : 0.9 + 0.2 * Math.abs(Math.sin(t * FLICKER.flame + i)));
       });
 
       // A relic, once found, is gone from its stand.
@@ -217,11 +277,13 @@ export function createView3d(canvas: HTMLCanvasElement, maze: Maze, rooms?: read
       const hue = hunting ? 0xff3d5a : 0x7fd4ff;
       house.phantomLight.color.setHex(hue);
       (house.phantomAura.material as { color: Color }).color.setHex(hue);
+      for (const part of house.phantomGlow) (part.material as { color: Color }).color.setHex(hue);
       house.phantomLight.intensity = 4 + 18 * near;
       const pulse = calm ? 1 : 1 + 0.15 * Math.sin(t * (hunting ? 9 : 3));
       house.phantomAura.scale.setScalar(3.4 * pulse);
 
       dust.update(pos.x, pos.z, t, calm);
+      mist.update(pos.x, pos.z, t, calm);
 
       // The bell glows steadily; it sways only when motion is allowed.
       house.bell.rotation.z = calm ? 0 : 0.06 * Math.sin(t * 1.7);
@@ -247,6 +309,8 @@ export function createView3d(canvas: HTMLCanvasElement, maze: Maze, rooms?: read
       textures.floor?.dispose();
       textures.ceiling?.dispose();
       textures.web?.dispose();
+      textures.rug?.dispose();
+      textures.wood?.dispose();
       renderer.dispose();
     },
   };

@@ -20,6 +20,8 @@ import {
   prove,
   themesHaveContrast,
   songProperties,
+  pulsesGentle,
+  retryInTime,
   type ProofProperty,
   type ProofResult,
 } from '../proof';
@@ -188,9 +190,13 @@ export function createKit(config: KitConfig = {}): Kit {
   const runSettings = resolveRunSettings(config.run);
   // A lesson adds its own check: every number is in range and is solid exactly when it is a target.
   const song = config.song;
+  // With `explainOnce`, a repeat fall is a short line that the game does not wait for: level time moves
+  // again after the fall pause alone, and the proof checks that is under a second at every speed.
+  const retryWordsMs = 0;
   const extra: readonly ProofProperty[] = [
     ...(lesson ? [lessonProperty(lesson)] : []),
     ...(song ? songProperties(lesson) : []),
+    ...(runSettings.explainOnce ? [retryInTime(runSettings, retryWordsMs)] : []),
     ...(config.properties ?? []),
   ];
   const proofInput = (label?: string) => ({
@@ -297,6 +303,8 @@ export function createKit(config: KitConfig = {}): Kit {
         const still = noUnsafeFlashing(this.renderLevel(sample, { ...profile, reducedMotion: true }), timing.rates.fast, true, `Level ${sample.seed}, reduced motion`);
         results.push(worst ?? still);
       }
+      // A song gives the picture a beat to pulse on: gently, once a beat, never when motion is reduced.
+      if (song) results.push(pulsesGentle([timing.beat], timing, `Tempo ${timing.beat} s`));
       results.push(this.proveEvents(profile), themesHaveContrast(), noHoldOrChord());
       const spoken = (sample ? this.renderLevel(sample, profile) : []).flatMap((c) => (c.channel === 'speech' ? [c.text] : []));
       results.push(linesInScript(spoken, this.lineScript()));
@@ -313,6 +321,12 @@ export function createKit(config: KitConfig = {}): Kit {
       }
       for (const key of ['fallEarly', 'fallLate', 'fallNone', 'hurt', 'levelComplete', 'perfect'] as const) {
         add(phrase(key, {}, strings), key);
+      }
+      if (runSettings.explainOnce) {
+        // A repeat fall: the short reason, then the try number.
+        for (const key of ['fallEarly', 'fallLate', 'fallNone', 'fallWrong'] as const) {
+          add(`${phrase(key, {}, strings)} ${strings.fallAttempt}`, 'a repeat fall at the same obstacle');
+        }
       }
       if (lesson) {
         // The number, the wrong-press line and the streak call-out are said while playing a lesson.

@@ -3,7 +3,8 @@ import { timesTable } from './lessons';
 import { useObject } from '@marrow/skeleton/catalogue';
 import { OBJECTS } from './objects/index.generated';
 import { defineGate, defineSpike } from './objects/moves';
-import { defineProjectile } from './objects/projectile';
+import { defineProjectile, defineThrow } from './objects/projectile';
+import { patternByEar, patternEvents, patternSong, tellsClearOfCountdowns } from './pattern';
 import { defineStone } from './objects/stone';
 import { bossLesson, bossTrackOf, type Stage } from './stages';
 
@@ -26,14 +27,35 @@ export function createGhastlyKit(what: number | Stage | Lesson, options: Ghastly
     typeof what === 'number' ? timesTable(what) : stage ? (boss ? bossLesson(stage) : stage.lesson) : (what as Lesson);
   const track = stage ? (boss ? bossTrackOf(stage) : stage.track) : null;
   // A stage is a song: the level follows its parts, its portals and its tempo. A boss fight is jumps only.
-  const song = stage && !boss ? stage.song : undefined;
+  // A boss with a pattern is a song too: tells and volleys in a fixed order, every press on the beat.
+  const pattern = boss?.pattern;
+  const song = stage && !boss ? stage.song : pattern && stage ? patternSong(pattern, stage.song.beat, stage.boss.name) : undefined;
   const kit = createKit({
     lesson,
     // The coach says what is coming before each countdown, for players who want more warning. Off until the player picks a lead.
     coach: true,
+    // Instant retry: back in play within a second of a fall. The sum behind a mistake is told the first
+    // time at each obstacle; later falls there say the short reason and the attempt.
+    run: { fallPause: 0.4, restartLead: 0.8, explainOnce: true },
+    strings: { fallEarly: 'Early.', fallLate: 'Late.', fallNone: 'Missed.', fallWrong: 'Wrong number.' },
     ...(song ? { song: song.song, timing: { beat: song.beat } } : {}),
+    ...(pattern ? { properties: [patternByEar(pattern), tellsClearOfCountdowns(pattern)] } : {}),
     ...(track ? { audio: { keyHz: track.rootHz, track } } : {}),
     events: {
+      ...(pattern ? patternEvents(pattern) : {}),
+      // Beating your best: a rising chime, a caption and two words. It plays once an attempt.
+      'new-best': {
+        say: 'New best.',
+        caption: 'New best: {percent}%',
+        sound: { hz: 784, wave: 'sine', gain: 0.7, role: 'reward', shape: { hzTo: 1175, seconds: 0.45 } },
+        haptic: [40, 40, 80],
+      },
+      // The numbers at a fall, for the live region and the caption. Not spoken: the reason is.
+      'run-stats': {
+        say: 'Attempt {attempt}. {percent} percent. Best {best} percent.',
+        caption: 'Attempt {attempt}: {percent}%. Best {best}%',
+        priority: 'information',
+      },
       intro: {
         say: 'Ghastly Moves. {prompt}',
         caption: '{prompt}',
@@ -96,7 +118,8 @@ export function createGhastlyKit(what: number | Stage | Lesson, options: Ghastly
       },
     },
   });
-  if (boss) defineProjectile(kit, boss.projectile);
+  if (pattern) for (const t of pattern.throws) defineThrow(kit, t);
+  else if (boss) defineProjectile(kit, boss.projectile);
   else defineStone(kit);
   // Spikes and gates only where the song has flips and gates, so they never turn up in a jump part.
   const kinds = new Set(song?.song.sections.flatMap((s) => s.kinds ?? []) ?? []);

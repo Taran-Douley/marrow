@@ -57,6 +57,10 @@ Not built, not applicable, or a proof is failing.
 - Pass: 6 Fourth beat clears
 - Pass: 15 Rests are rests
 - Pass: 16 Portals give warning
+- Pass: 19 Locked to the song
+- Pass: 20 Instant retry
+- Pass: 22 Boss pattern can be heard
+- Pass: 23 Tell clear of the countdowns
 - Pass: 101 One right answer each
 - Pass: 103 One right lane
 - Pass: 104 Gate words in time

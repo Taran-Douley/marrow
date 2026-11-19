@@ -141,6 +141,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.doUnmock('@marrow/skeleton');
 });
 
 
@@ -238,5 +239,91 @@ describe('Séance Escape page', () => {
     fright.dispatchEvent(new Event('change'));
     expect(localStorage.getItem('seance.fright')).toBe('off');
     expect(page.stats()).toMatch(/No games yet/);
+  });
+});
+
+describe('the run loop', () => {
+  /** Make the walk report three catches once `catchesNow.on` is set, as if the phantom had caught the player three times. */
+  const catchesNow = { on: false };
+  function threeCatches(): void {
+    catchesNow.on = false;
+    vi.doMock('@marrow/skeleton', async (original) => {
+      const real = await original<typeof import('@marrow/skeleton')>();
+      return {
+        ...real,
+        createWalk: (options: Parameters<typeof real.createWalk>[0]) => {
+          const walk = real.createWalk(options);
+          return { ...walk, snapshot: () => ({ ...walk.snapshot(), catches: catchesNow.on ? 3 : walk.snapshot().catches }) };
+        },
+      };
+    });
+  }
+  const houseNumber = (): number => Number((document.getElementById('level') as HTMLInputElement).value);
+
+  it('each run is a new house: the house number moves on and is saved', async () => {
+    const page = await boot('?level=3');
+    expect(houseNumber()).toBe(3);
+    enterHouse(page);
+    page.frames(3000);
+    const first = houseNumber();
+    expect(first).toBeGreaterThan(3); // the house served was number first - 1 or later, and the next run starts after it
+    expect(localStorage.getItem('seance.run')).toBe(String(first));
+  });
+
+  it('three catches end the run gently, and one press enters a new house', async () => {
+    threeCatches();
+    const page = await boot('?level=3');
+    enterHouse(page);
+    page.frames(3000);
+    const before = houseNumber();
+    catchesNow.on = true;
+    page.frames(60_000);
+    const said = page.spoken.join(' | ');
+    expect(said).toMatch(/The house lets you go\. You found 0 of 3 relics\./);
+    expect(said).toMatch(/Press any key to enter a new house/);
+    expect(said).not.toMatch(/game over/i);
+    expect(page.region().join(' | ')).toMatch(/The house lets you go/);
+    expect(page.stats()).toMatch(/the house let you go/);
+    // One press: a new house, with Mabel introducing it again.
+    catchesNow.on = false;
+    const intros = page.spoken.filter((s) => /I'm Mabel/.test(s)).length;
+    page.key('Space', ' ');
+    page.frames(3000);
+    expect(page.spoken.filter((s) => /I'm Mabel/.test(s)).length).toBe(intros + 1);
+    expect(houseNumber()).toBeGreaterThan(before);
+  });
+
+  it('with "Catches end a run" off, three catches do not end it', async () => {
+    threeCatches();
+    const page = await boot('?level=3');
+    const box = document.getElementById('catches') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+    expect(localStorage.getItem('seance.catches')).toBe('off');
+    enterHouse(page);
+    page.frames(3000);
+    catchesNow.on = true;
+    page.frames(60_000);
+    expect(page.spoken.join(' | ')).not.toMatch(/The house lets you go/);
+  });
+
+  it('the setting is reached with one switch, and says its new value', async () => {
+    const page = await boot('?level=3', [], JSON.stringify(defaultProfile()));
+    const waitFor = (re: RegExp): void => {
+      for (let i = 0; i < 1200 && !re.test(page.region().at(-1) ?? ''); i++) page.frames(100);
+      expect(page.region().at(-1)).toMatch(re);
+    };
+    page.key('Space', ' ');
+    page.frames(100);
+    waitFor(/^Play by sound$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    waitFor(/^Catches end a run: On: three catches end a run$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toBe('Catches end a run: Off: no limit');
+    expect(localStorage.getItem('seance.catches')).toBe('off');
+    expect((document.getElementById('catches') as HTMLInputElement).checked).toBe(false);
   });
 });

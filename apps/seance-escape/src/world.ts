@@ -26,7 +26,7 @@ import {
 } from 'three';
 import { openings, type Cell, type Dir, type Maze } from '@marrow/skeleton';
 import type { RoomInfo } from './content';
-import { halo } from './glow';
+import { glow, halo, shadow } from './glow';
 import { dressRooms, type Torch } from './rooms3d';
 
 // The haunted house as a 3D world. Everything is made in code: shapes from simple geometry,
@@ -181,6 +181,10 @@ export interface HouseTextures {
   ceiling: Texture | null;
   /** A cobweb with clear gaps. */
   web?: Texture | null;
+  /** A woven rug with a border and a pattern. */
+  rug?: Texture | null;
+  /** Dark wood grain, for panelling and door frames. */
+  wood?: Texture | null;
 }
 
 function paint(size: number, draw: (g: CanvasRenderingContext2D) => void, repeat: [number, number]): Texture | null {
@@ -253,6 +257,26 @@ export function paintTextures(seed = 1): HouseTextures {
         const shade = 44 + Math.floor(rand() * 26);
         g.fillStyle = `rgb(${shade + 14},${shade},${shade - 8})`;
         g.fillRect(i * 32 + 1, 0, 30, 256);
+        // Grain along the board, and a knot now and then.
+        g.lineWidth = 1;
+        for (let k = 0; k < 5; k++) {
+          const gx = i * 32 + 3 + rand() * 26;
+          g.strokeStyle = rand() < 0.5 ? 'rgba(0,0,0,0.25)' : 'rgba(255,225,190,0.08)';
+          g.beginPath();
+          g.moveTo(gx, 0);
+          for (let y = 0; y < 256; y += 16) g.lineTo(gx + Math.sin(y * 0.06 + k) * 1.4, y);
+          g.stroke();
+        }
+        if (rand() < 0.4) {
+          g.strokeStyle = 'rgba(10,5,3,0.6)';
+          const kx = i * 32 + 8 + rand() * 16;
+          const ky = rand() * 256;
+          for (let r = 2; r <= 5; r += 1.5) {
+            g.beginPath();
+            g.ellipse(kx, ky, r * 0.8, r * 1.6, 0, 0, Math.PI * 2);
+            g.stroke();
+          }
+        }
         g.fillStyle = 'rgba(0,0,0,0.5)';
         g.fillRect(i * 32 - 1, 0, 3, 256);
         for (let k = 0; k < 3; k++) g.fillRect(i * 32 + 2, rand() * 256, 28, 2);
@@ -303,7 +327,61 @@ export function paintTextures(seed = 1): HouseTextures {
     },
     [1, 1],
   );
-  return { wall, floor, ceiling, web };
+  // A rug: a deep red field, a gold border, a diamond in the middle, and a worn, fringed edge.
+  const rug = paint(
+    128,
+    (g) => {
+      g.fillStyle = '#4a1220';
+      g.fillRect(0, 0, 128, 128);
+      g.strokeStyle = '#b8903c';
+      g.lineWidth = 4;
+      g.strokeRect(8, 8, 112, 112);
+      g.lineWidth = 2;
+      g.strokeStyle = '#7a2a3a';
+      g.strokeRect(16, 16, 96, 96);
+      g.fillStyle = '#7a2a3a';
+      g.beginPath();
+      g.moveTo(64, 26);
+      g.lineTo(102, 64);
+      g.lineTo(64, 102);
+      g.lineTo(26, 64);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = '#b8903c';
+      g.stroke();
+      g.fillStyle = '#b8903c';
+      g.beginPath();
+      g.arc(64, 64, 7, 0, Math.PI * 2);
+      g.fill();
+      speckle(g, 128, rand, 300, '#d9c29a', '#12060a');
+      g.fillStyle = '#d9c9a8';
+      for (let x = 2; x < 128; x += 5) {
+        g.fillRect(x, 0, 2, 4);
+        g.fillRect(x, 124, 2, 4);
+      }
+    },
+    [1, 1],
+  );
+  // Dark wood with long grain, for panelling and frames.
+  const wood = paint(
+    128,
+    (g) => {
+      g.fillStyle = '#34200f';
+      g.fillRect(0, 0, 128, 128);
+      for (let k = 0; k < 26; k++) {
+        g.strokeStyle = rand() < 0.5 ? 'rgba(0,0,0,0.3)' : 'rgba(210,160,110,0.09)';
+        g.lineWidth = 1 + rand();
+        const y = rand() * 128;
+        g.beginPath();
+        g.moveTo(0, y);
+        for (let x = 0; x <= 128; x += 16) g.lineTo(x, y + Math.sin(x * 0.07 + k) * 2.2);
+        g.stroke();
+      }
+      speckle(g, 128, rand, 120, '#b08a60', '#080402');
+    },
+    [1, 1],
+  );
+  return { wall, floor, ceiling, web, rug, wood };
 }
 
 // ---- the three.js world -----------------------------------------------------
@@ -315,6 +393,8 @@ export interface House {
   phantomLight: PointLight;
   /** The glow around the phantom. */
   phantomAura: Sprite;
+  /** The rest of its glow (outer halo, floor pool), tinted with the aura. */
+  phantomGlow: (Sprite | Mesh)[];
   exitLight: PointLight;
   bell: Mesh;
   /** A torch in every room, so the view can light the nearest. */
@@ -420,12 +500,58 @@ export function buildHouse(maze: Maze, textures: HouseTextures, rooms?: readonly
   beamMesh.instanceMatrix.needsUpdate = true;
   group.add(beamMesh);
 
+  // Wainscoting: a dark wood panel low on every wall, a rail on top and a skirting board at the foot.
+  // Three instanced meshes for the whole house, sharing one material.
+  const panelMat = new MeshStandardMaterial({ color: textures.wood ? 0xffffff : 0x34200f, map: textures.wood ?? null, roughness: 0.65, metalness: 0 });
+  const boxGeo = new BoxGeometry(1, 1, 1);
+  const trim = (height: number, y: number, extra: number): InstancedMesh => {
+    const mesh = new InstancedMesh(boxGeo, panelMat, Math.max(1, layout.walls.length));
+    layout.walls.forEach((w, i) => {
+      m.compose(new Vector3(w.x, y, w.z), q, new Vector3(w.w + (w.w > w.d ? 0 : extra), height, w.d + (w.d > w.w ? 0 : extra)));
+      mesh.setMatrixAt(i, m);
+    });
+    mesh.count = layout.walls.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    return mesh;
+  };
+  group.add(trim(1.0, 0.5, 0.1), trim(0.07, 1.04, 0.16), trim(0.2, 0.1, 0.16));
+
+  // Door frames at the openings of every room: two posts and a lintel, drawn once per opening.
+  const frames: { x: number; z: number; alongX: boolean }[] = [];
+  const framed = new Set<string>();
+  for (const room of maze.rooms) {
+    for (const d of openings(maze, room)) {
+      const n = { x: room.x + DIR_VECTOR[d].x, y: room.y + DIR_VECTOR[d].z };
+      const key = [Math.min(room.x, n.x), Math.min(room.y, n.y), d % 2].join(',');
+      if (framed.has(key)) continue;
+      framed.add(key);
+      const c = cellCentre(room);
+      frames.push({ x: c.x + (DIR_VECTOR[d].x * CELL) / 2, z: c.z + (DIR_VECTOR[d].z * CELL) / 2, alongX: d % 2 === 0 });
+    }
+  }
+  const postMesh = new InstancedMesh(boxGeo, panelMat, Math.max(1, frames.length * 2));
+  const lintelMesh = new InstancedMesh(boxGeo, panelMat, Math.max(1, frames.length));
+  frames.forEach((f, i) => {
+    // The doorway is 2.2 m wide: along x for a north or south opening, along z for east or west.
+    for (const side of [-1, 1]) {
+      m.compose(new Vector3(f.x + (f.alongX ? side * 1.2 : 0), 1.25, f.z + (f.alongX ? 0 : side * 1.2)), q, new Vector3(0.2, 2.5, 0.2));
+      postMesh.setMatrixAt(i * 2 + (side + 1) / 2, m);
+    }
+    m.compose(new Vector3(f.x, 2.55, f.z), q, f.alongX ? new Vector3(2.6, 0.22, 0.24) : new Vector3(0.24, 0.22, 2.6));
+    lintelMesh.setMatrixAt(i, m);
+  });
+  postMesh.count = frames.length * 2;
+  lintelMesh.count = frames.length;
+  postMesh.instanceMatrix.needsUpdate = true;
+  lintelMesh.instanceMatrix.needsUpdate = true;
+  group.add(postMesh, lintelMesh);
+
   // Furnishings.
   const wood = new MeshStandardMaterial({ color: 0x3a2616, roughness: 0.7 });
   const canvasMat = new MeshStandardMaterial({ color: 0x7c6a5a, roughness: 0.9 });
   const candleMat = new MeshStandardMaterial({ color: 0xe9dfc8, roughness: 0.6 });
   const flameMat = new MeshBasicMaterial({ color: 0xffc46b });
-  const rugMat = new MeshStandardMaterial({ color: 0x5a1626, roughness: 1 });
+  const rugMat = new MeshStandardMaterial({ color: textures.rug ? 0xffffff : 0x5a1626, map: textures.rug ?? null, roughness: 1 });
   const crateGeo = new BoxGeometry(0.8, 0.8, 0.8);
   const frameGeo = new BoxGeometry(1.0, 1.3, 0.08);
   const paintingGeo = new PlaneGeometry(0.8, 1.1);
@@ -539,6 +665,21 @@ export function buildHouse(maze: Maze, textures: HouseTextures, rooms?: readonly
     group.add(item);
   }
 
+  // Cheap fake shadows: one soft dark blot under each standing thing, all in one instanced mesh.
+  const blotSize: Partial<Record<Prop['kind'], number>> = { crate: 1.5, candle: 0.6, barrel: 1.2, skull: 0.5, bookcase: 2.4 };
+  const blots = layout.props.filter((p) => blotSize[p.kind] !== undefined);
+  const blotMat = new MeshBasicMaterial({ color: 0x000000, map: shadow(), transparent: true, opacity: shadow() ? 0.9 : 0.3, depthWrite: false });
+  const blotMesh = new InstancedMesh(new PlaneGeometry(1, 1), blotMat, Math.max(1, blots.length));
+  const flat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
+  blots.forEach((p, i) => {
+    const s = blotSize[p.kind]!;
+    m.compose(new Vector3(p.x, 0.011, p.z), flat, new Vector3(s, s, 1));
+    blotMesh.setMatrixAt(i, m);
+  });
+  blotMesh.count = blots.length;
+  blotMesh.instanceMatrix.needsUpdate = true;
+  group.add(blotMesh);
+
   // The bell at the exit: hung from a beam, glowing, with a pool of light on the floor.
   const exit = cellCentre(maze.exit);
   const bell = new Mesh(
@@ -586,7 +727,17 @@ export function buildHouse(maze: Maze, textures: HouseTextures, rooms?: readonly
   aura.position.y = 0.9;
   const core = halo(0xe8f6ff, 1.6, 0.6);
   core.position.y = 1.1;
-  phantom.add(aura, core);
+  // A wide, faint outer glow, and a pool of light on the floor under it, so it lights the boards it passes over.
+  const outer = halo(0x7fd4ff, 7, 0.16);
+  outer.position.y = 0.9;
+  const poolMap = glow();
+  const pool2 = new Mesh(
+    new PlaneGeometry(4.2, 4.2),
+    new MeshBasicMaterial({ color: 0x7fd4ff, ...(poolMap ? { map: poolMap } : {}), transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false }),
+  );
+  pool2.rotation.x = -Math.PI / 2;
+  pool2.position.y = -0.13;
+  phantom.add(outer, pool2, aura, core);
   const eyeMat = new MeshBasicMaterial({ color: 0x05030a, fog: false });
   const eyeGeo = new SphereGeometry(0.06, 8, 8);
   const eyeL = new Mesh(eyeGeo, eyeMat);
@@ -608,6 +759,7 @@ export function buildHouse(maze: Maze, textures: HouseTextures, rooms?: readonly
     phantom,
     phantomLight,
     phantomAura: aura,
+    phantomGlow: [outer, pool2],
     exitLight,
     bell,
     torches: dressing.torches,

@@ -194,6 +194,8 @@ export const MABEL = {
       'It only wants to frighten you. Quieter this time. Hide if you hear it coming.',
       'Chin up, dear. Ask me the way if you are lost.',
     ][Math.max(0, Math.min(3, catches - 1))]!,
+  /** Said at the third catch, when catches end a run. */
+  lastCatch: 'That is three times, dear. Enough for tonight.',
   /** Said before a hint Mabel gives without being asked, after you have been caught a few times. */
   offer: 'Let me help, dear.',
   /** Mabel's word on a kind of room, the first time you walk into one. Short, so the ways out come soon. */

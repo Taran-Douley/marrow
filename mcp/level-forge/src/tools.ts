@@ -272,6 +272,11 @@ const proveHouseTool: Tool = {
       margin: { type: 'integer', minimum: 0 },
       minGhostStart: { type: 'integer', minimum: 0 },
       relics: { type: 'integer', minimum: 0, maximum: 5, description: 'Relics to find before the exit opens (adds the ritual proof, 205 and 206).' },
+      runLength: {
+        type: 'boolean',
+        description:
+          'Also prove the run length (207): a clean run, by a player who does not know the house, takes 5 to 8 minutes at every speed (slow, medium, fast) and every scanning dwell (1500, 2200, 4000 ms). Séance Escape serves 12 by 10 houses with 3 relics, and skips the ones that fail.',
+      },
     },
     required: ['seed'],
   },
@@ -291,7 +296,8 @@ const proveHouseTool: Tool = {
     );
     let results: ProofResult[];
     try {
-      results = proveMaze(generateMaze(seed, options), `House ${seed}`);
+      if (args.runLength !== undefined && typeof args.runLength !== 'boolean') throw new ArgumentError("'runLength' must be true or false.");
+      results = proveMaze(generateMaze(seed, options), `House ${seed}`, args.runLength === true ? { runLength: true } : {});
     } catch (error) {
       throw new ArgumentError(error instanceof Error ? error.message : String(error));
     }

@@ -58,5 +58,6 @@ Not built, not applicable, or a proof is failing.
 - Pass: 204 Well formed
 - Pass: 205 Ritual route safe
 - Pass: 206 Ritual well placed
+- Pass: 207 Run length fits
 
 *Made from the kit’s guarantees, never by hand. Tags are the 24 of the ESA Accessible Games Initiative (2025).*

@@ -68,3 +68,38 @@ export function mapLines(p: Progress): string[] {
     return `Stage ${s.id}, ${s.name}: ${s.rule}. ${state}${rank ? `. Best rank ${rank}` : ''}.`;
   });
 }
+
+// ---- the furthest you got ------------------------------------------------------------
+
+/**
+ * The best share of a level passed in one clean stretch, without a fall, per stage (and per boss).
+ * Kept apart from `Progress` in its own saved value, so older saves are not touched.
+ */
+export type Far = Record<string, number>;
+
+/** The key for a level: a stage ('3'), its boss ('3b'), or free practice of a table ('t7'). */
+export const farKey = (stageId: number | undefined, boss: boolean, table: number): string =>
+  stageId === undefined ? `t${table}` : `${stageId}${boss ? 'b' : ''}`;
+
+/** Read the saved bests. Anything odd is dropped, never an error. */
+export function parseFar(raw: string | null): Far {
+  try {
+    const value: unknown = JSON.parse(raw ?? '{}');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(([k, v]) => /^(\d{1,2}b?|t\d{1,2})$/.test(k) && typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 100),
+    ) as Far;
+  } catch {
+    return {};
+  }
+}
+
+/** The new set of bests, with `percent` in if it beats the one saved. */
+export function withFar(far: Far, key: string, percent: number): Far {
+  const p = Math.max(0, Math.min(100, Math.floor(percent)));
+  return p > (far[key] ?? 0) ? { ...far, [key]: p } : far;
+}
+
+/** Share of a level passed, 0 to 100: obstacles got right so far over all of them. */
+export const percentPassed = (passed: number, total: number): number =>
+  total <= 0 ? 0 : Math.max(0, Math.min(100, Math.floor((passed / total) * 100)));

@@ -364,3 +364,21 @@ A second spec, written before any code: `.kiro/specs/marrow-advisor/` (requireme
 
 - The advisor's quality report found waits of up to 17 s at Slow. Portals now clear one bar instead of two, and the run holds only as long as the portal's words take (`holdForWords`), so Slow is not slowed for Fast's sake. Breakdowns are one bar instead of two. The longest wait is now 7 to 10 s at Slow on every stage. All levels still pass every proof.
 - `npm run play` starts both games from the newest code, with live reload, and skips install and build when they are done. The games are live at https://taran-douley.github.io/marrow/ and rebuild on every merge to main.
+
+## Ghastly Moves rhythm v2, Stage 1 (spec ghastly-rhythm-v2)
+
+- **Spec first**: `.kiro/specs/ghastly-rhythm-v2/` (requirements, design, tasks), written from the five Ghastly pillars in `.kiro/steering/game-feel.md`. Tasks are ticked only for what is built: Stage 1 (the Pumpkin Patch and the Pumpkin King). Stage 1 has no portals by design.
+- **Locked to the song** (property 19): every press is a whole number of beats in, and every countdown sits inside one non-rest part. Passes on 250 random seeds for each of the 7 stage songs and for the boss fight.
+- **Instant retry** (property 20): the fall pause is 0.4 s and the restart lead 0.8 s. The first fall at an obstacle says the short reason and the sum, and may wait for the words. A repeat fall says "Early. Attempt 4." and waits for nothing. A headless test plays three repeat falls at slow, medium and fast. The canvas shows progress, attempt and best; the best is saved per stage and boss; a new best plays a sound once an attempt. Stats go to the live region at each fall.
+- **The picture dances** (property 21): a soft pulse on each beat, at most 3 a second at every stage tempo and speed, none with reduced motion, under the flash threshold in both themes. New sky, moon glow, three drifting layers, ground, ghost and lantern, all drawn in code. The map has the same sky.
+- **The Pumpkin King by sound alone** (properties 22 and 23): lobbed bombs (659 Hz sine) and rolled bombs (392 Hz square), each with its own throw sound and tell, in the fixed order lob, roll, lob, roll, lob, roll. A tell sits in the rest bar before each volley and never meets a countdown.
+- Not done: patterns for the other six bosses, a seen portal gate, tuning by ear. No real player has tried it.
+
+## Séance Escape runs, Stage 1 (spec seance-runs)
+
+- **Spec first**: `.kiro/specs/seance-runs/` (requirements, design, tasks) from the six Séance pillars in `.kiro/steering/game-feel.md`. It writes down the conflict between "no game over" in accessibility.md and the three-catch end: catches end a run by default, told gently ("The house lets you go"), with a setting to turn the limit off. Only Stage 1 is ticked.
+- **New house per run**: `serveHouse` tries seeds from a saved run counter and serves the first house that passes 201 to 207. Failed houses are skipped and logged.
+- **Property 207, Run length fits**: a headless explorer (depth first, takes relics, never caught) counts stride time, spoken lines and scanning time. 5 to 8 minutes for all nine profiles (slow, medium, fast by dwell 1500, 2200, 4000). The standard house is 12 by 10 with 3 relics; 56 of 240 seeds pass and the rest are skipped. Tested with fast-check on 240 seeds. `prove_house` takes `runLength: true`.
+- **Three catches end a run**, with a one-press next run and a "Catches end a run" setting in the one-switch menu and on the page.
+- **Graphics**: warm lantern, fake shadows, fog, wainscoting, skirting, door frames, rug and wood detail, mist, vignette, a layered phantom glow. Flicker stays under 3 a second.
+- Not done: Stages 2 to 4 (told risks, noise tracking, room events, perks). Run lengths are estimates from a headless player; no real player has timed a run.
