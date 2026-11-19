@@ -12,7 +12,8 @@
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run build --workspaces --if-present",
+    "new-game": "node power/marrow/skills/build-an-accessible-game/scripts/new-game.mjs"
   }
 }
 

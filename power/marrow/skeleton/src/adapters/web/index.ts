@@ -30,7 +30,7 @@ export type { BrowserVoiceOptions, ClipHandle, Clips, PlayClip, SayHow, SpeakerO
 export { createProfileStore } from './storage';
 export { bindInput, createGamepadPoller, isControl } from './input';
 export { createHaptics } from './haptics';
-export { createVisual, drawCaptionBox, DEFAULT_FONT } from './visual';
+export { createVisual, drawCaptionBox, drawMenu, DEFAULT_FONT } from './visual';
 export type { AudioContextLike, SoundOptions } from './sound';
 export type { RegionLike, SynthLike } from './speech';
 export type { StorageLike } from './storage';

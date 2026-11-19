@@ -55,6 +55,7 @@ export type { TrackSpec } from './channels';
 export type { Acoustics, SoundRecipe } from './channels/audio';
 export { withAcoustics } from './channels/audio';
 export { coachInTime } from './proof';
+export { DEFAULT_SPEECH_PACE, nearest, speechPace } from './scale';
 export { coachTimes } from './run';
 export type { CoachLine } from './run';
 export { BACK_ID, PROFILE_SETTINGS, SETUP_CHOICES, createMenuStack, applySetting, applySetup, createMenu, entryLabel, menuAudible, profileEntries, setupEntries } from './menu';

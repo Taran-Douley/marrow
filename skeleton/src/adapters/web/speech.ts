@@ -260,6 +260,8 @@ export function createSpeaker(options: SpeakerOptions): Speaker {
         return;
       }
       if (mode === 'latest' && line.key !== undefined) waiting = waiting.filter((w) => w.key !== line.key);
+      // The same line already waiting is said once, not twice in a row.
+      if (waiting.some((w) => w.text === line.text)) return;
       waiting.push(line);
       while (waiting.length > maxWaiting) waiting.shift();
       if (current === 0) next();

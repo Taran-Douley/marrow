@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bat Dash</title>
+    <style>
+      body { margin: 0; background: #14101f; color: #f4efe6; font: 1.125rem/1.5 "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; }
+      main { max-width: 980px; margin: 0 auto; padding: 1rem; }
+      canvas { display: block; width: 100%; height: auto; border: 2px solid #9d94b5; }
+      canvas[hidden] { display: none; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      :focus-visible { outline: 4px solid #ffd84d; outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Bat Dash</h1>
+      <p>Press any key, click, tap or gamepad button. That is the only control. Escape comes back to the menu.</p>
+      <canvas id="game" width="960" height="540" role="img" aria-label="The game. Everything shown here is also spoken and written."></canvas>
+      <div id="announcements" class="visually-hidden"></div>
+      <!-- For screen-reader users: turn the built-in voice off, and every line is still written to the log above. -->
+      <form data-marrow-ignore>
+        <label><input type="checkbox" id="voice" /> Built-in voice on</label>
+      </form>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

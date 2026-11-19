@@ -165,8 +165,11 @@ describe('the hooks', () => {
   it('the core hook fires on a skeleton file, and the store-list hook runs the report scripts that exist', () => {
     expect(new RegExp(json(root, '.kiro', 'hooks', 'core-change-tests.json').hooks[0].matcher).test('skeleton\\src\\report\\index.ts')).toBe(true);
     const store = json(root, '.kiro', 'hooks', 'store-list-report.json').hooks[0];
-    expect(store.action.command).toBe('npm run report --workspace apps/ghastly-moves --workspace apps/seance-escape');
-    for (const app of ['ghastly-moves', 'seance-escape']) expect(json(root, 'apps', app, 'package.json').scripts.report).toMatch(/report\.test\.ts/);
+    expect(store.action.command).toBe('npm run report --workspace apps/ghastly-moves --workspace apps/seance-escape && npm run proof-report --workspace apps/ghastly-moves --workspace apps/seance-escape');
+    for (const app of ['ghastly-moves', 'seance-escape']) {
+      expect(json(root, 'apps', app, 'package.json').scripts.report).toMatch(/report\.test\.ts/);
+      expect(json(root, 'apps', app, 'package.json').scripts['proof-report']).toMatch(/proof-report\.test\.ts/);
+    }
   });
 });
 

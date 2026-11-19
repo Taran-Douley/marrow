@@ -3,10 +3,10 @@
   "hooks": [
     {
       "name": "Regenerate the accessibility feature list",
-      "description": "When a kit, object or stage changes, rewrite docs/accessibility-report-*.md from what the kit actually guarantees. The list is never written by hand.",
+      "description": "When a kit, object or stage changes, rewrite docs/accessibility-report-*.md and docs/proof-report-*.md from what the kit actually guarantees. The list is never written by hand.",
       "trigger": "PostFileSave",
       "matcher": "(apps[/\\\\][^/\\\\]+[/\\\\]src[/\\\\](kit|objects|stages)|skeleton[/\\\\]src[/\\\\](report|channels))",
-      "action": { "type": "command", "command": "npm run report --workspace apps/ghastly-moves --workspace apps/seance-escape" },
+      "action": { "type": "command", "command": "npm run report --workspace apps/ghastly-moves --workspace apps/seance-escape && npm run proof-report --workspace apps/ghastly-moves --workspace apps/seance-escape" },
       "timeout": 300
     }
   ]

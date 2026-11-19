@@ -7,6 +7,10 @@ description: Build a browser game on Marrow so it is accessible by default. Use 
 
 Marrow is a small kit. You describe what happens in the game (events) and what is in it (objects). The kit shows every event through sound, speech, captions, a marker for every sound, and touch, according to one player profile. A property-based proof checks that levels can be finished with one switch. **Accessibility is the default. Never ask the developer whether they want it, and never add it by hand.**
 
+## Step 0: Starting from nothing? Make a whole game in one step
+
+`node <this skill's folder>/scripts/new-game.mjs <new-folder> --kiro` makes a complete, runnable game (Bat Dash: one file, `src/main.ts`) with a proved level, a one-switch menu with settings and first-run setup, the coach, sound, speech, captions and vibration. Then `npm install` and `npm run dev` in that folder. Grow it into the developer's game; skip Step 1.
+
 ## Step 1: Put the kit in the project
 
 Run the script that sits next to this file, `scripts/install-skeleton.mjs`, with node, giving the folder to create (default `./marrow`): `node <this skill's folder>/scripts/install-skeleton.mjs ./marrow`. It copies the runtime into the project. Add `--kiro` to also copy the proof hooks and the three agents into `.kiro/` (it never overwrites a file that is already there). Then add it as a dependency, for example in `package.json`: `"@marrow/skeleton": "file:./marrow"`. The game imports only from `@marrow/skeleton` and `@marrow/skeleton/web`. Never reach into the kit's folders.

@@ -112,20 +112,20 @@ developers build into their own games; nothing may be hard-wired to ours.
     respects reduced motion.
   - _Req 3a.5, 3a.6, 5.6_
 
-- [ ] 12. Proof, part 2: channel and profile properties
+- [x] 12. Proof, part 2: channel and profile properties (DONE 2026-11-19: `proof/presentation.ts` with 7, 9, 10, 11; `kit.provePresentation()`; property-tested; both apps pass)
   - Properties 7, 8, 9, 10, 11 (flash rate, two-sense, contrast per theme, no
     hold or chord, strings coverage) with counterexamples.
   - (PBT) over random profiles and themes.
   - _Req 8.11–8.16, 13.1_
 
-- [ ] 13. Proof, part 3: intent, audibility, setup
+- [x] 13. Proof, part 3: intent, audibility, setup (DONE 2026-11-19: 12 `repairsKeepTheLevel`; 13 and 14 already built; setup options reach five channels, tested)
   - Properties 12, 13, 14; repair guard (no repair applies to a profile that didn't ask for it).
   - Property 13 is already written as `cuesAudible` and property-tested; this task wires it into `prove`.
   - (PBT) default-profile level unchanged by any repair; cues exceed ambience
     under any volume mix.
   - _Req 8.17–8.20, 19.3_
 
-- [ ] 14. Scanning and first-run setup (PARTLY DONE: the `scanning/` state machine and property 102
+- [x] 14. Scanning and first-run setup (DONE 2026-11-19: `menu/` with `createMenu`, `createMenuStack`, profile settings, the five-way first-run setup; both apps are one-switch end to end, settings included. Earlier note: PARTLY DONE: the `scanning/` state machine and property 102
   are built and tested, and used by Séance Escape; the first-run setup flow is not built)
   - `scanning/` state machine (done); `setup/` five options as `menu-option` events
     with speech, caption, indicator and pulse pattern; save and reopen with one
@@ -138,7 +138,7 @@ developers build into their own games; nothing may be hard-wired to ours.
     proof results; headless.
   - _Req 9.1–9.5, 19.1–19.5_
 
-- [ ] 15a. Coach voice (PROPOSED: build only after the go-ahead on its two open choices)
+- [x] 15a. Coach voice (DONE 2026-11-19, go-ahead given: lead is before the first beep, 1 to 3 s; lessons say 'decide', never the answer; property 17 `coachInTime`; on in Ghastly Moves)
   - Coach line scheduled `lead` seconds before the press as a speech event;
     profile field `coachLeadSeconds` (0 = off); proof property 15 (the line
     starts after landing plus margin); report the longest lead that fits.
@@ -171,7 +171,7 @@ developers build into their own games; nothing may be hard-wired to ours.
   for the line before them, Listen is heard in full. Needs a real voice to confirm the wait times.
   - _Req 26.6, 26.7_
 
-- [ ] 16d. Scale pack (PROPOSED): priority and verbosity for events, a speech queue with
+- [x] 16d. Scale pack (DONE 2026-11-19: priorities and announce levels, critical cuts in, repeated waiting lines said once, a voice limit in the sound player that never drops a beep, `nearest`, property 18 `speechPace`. Not built: combining counts into one line, e.g. 'three enemies left'. Earlier note: PROPOSED): priority and verbosity for events, a speech queue with
   interruption rules, a sound voice budget, and "nearest N" announcing, so a large, busy game
   can use the kit without drowning the player. See Requirement 25.
   - _Req 25.1–25.7_
