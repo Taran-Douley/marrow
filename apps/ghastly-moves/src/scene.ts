@@ -1,5 +1,6 @@
 import { moveAt, pulseAt, sectionAt, sideBefore, themeFor, type Kit, type Level, type Move, type Obstacle, type Profile, type RunSnapshot } from '@marrow/skeleton';
-import { drawGhost, drawGround, drawLayers, drawSky, type ArtState } from './art';
+import { drawGhost, drawGround, drawLayers, drawObstacleGlow, drawPortalGate, drawSky, type ArtState } from './art';
+import { throwByName, type BossPattern } from './pattern';
 import { drawBoss, drawHealth } from './boss';
 import { drawItem } from './map';
 import type { BossLook, Scenery } from './stages';
@@ -38,6 +39,8 @@ export interface SceneState {
   items?: readonly string[];
   /** The boss fight, when there is one. Times are real-clock ms. */
   boss?: BossState | null;
+  /** The boss's pattern, to know how each kind of throw moves. */
+  pattern?: BossPattern | undefined;
   /** How the run is going, in numbers, so progress is read and not only felt. */
   stats?: { percent: number; attempt: number; best: number } | null;
 }
@@ -123,11 +126,21 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
     ctx.stroke();
   }
 
+  // A portal gate stands on the way where a part of the song changes the move: it arrives with the
+  // portal, and names the new mode in words, so the change is seen as well as heard and said.
+  for (const p of level?.portals ?? []) {
+    const x = GHOST_X + (p.at - t) * PX_PER_SEC;
+    if (x > WIDTH + 100 || x < -100) continue;
+    drawPortalGate(ctx, { x, groundY: GROUND_Y, move: p.move, label: MOVE_WORDS[p.move], text: theme.text, panel: theme.panel, line: theme.line, accent: theme.amber, font: `bold ${Math.round(18 * Math.min(profile.textScale, 1.4))}px ${FONT}` });
+  }
+
   if (level) {
     for (const o of level.obstacles) {
       const x = GHOST_X + (o.start - t) * PX_PER_SEC;
       const w = o.width * PX_PER_SEC;
       if (x > WIDTH + 20 || x + w < -20) continue;
+      // Every obstacle swells softly on the beat, the same for a target and a dud.
+      if (pulse > 0) drawObstacleGlow(ctx, art, x + w / 2, GROUND_Y - 50, 54);
       if ((o.move ?? 'jump') !== 'jump') {
         drawMoveObstacle(ctx, kit, level, o, x, w, GHOST_X - half, theme.line);
         continue;
@@ -135,7 +148,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
       // In a boss fight, a throw is in the boss's hand until it is let go, then arcs down to the ground.
       if (boss && x > RELEASE_X) continue;
       const progress = boss ? Math.min(1, Math.max(0, (RELEASE_X - x) / (RELEASE_X - (GHOST_X + 60)))) : 1;
-      const lift = boss && o.kind !== 'rolled-bomb' ? (1 - progress) ** 2 * 150 : 0; // a rolled bomb stays on the ground
+      // A lobbed throw arcs down, a swooped one flies in on a slant, a rolled one stays on the ground.
+      const motion = scene.pattern ? throwByName(scene.pattern, o.kind)?.motion : undefined;
+      const lift = !boss || motion === 'rolled' ? 0 : motion === 'swooped' ? (1 - progress) * 130 : (1 - progress) ** 2 * 150;
       const height = 74;
       const box = { x, y: GROUND_Y - height - lift, width: w, height, ...(o.value !== undefined ? { value: o.value } : {}) };
       // A stone you were right to let pass fades once you are through it. Never before:

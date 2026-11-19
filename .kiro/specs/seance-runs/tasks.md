@@ -1,6 +1,6 @@
 # Tasks: Séance Escape runs
 
-Stage 1 is the run loop, built now. Later stages are not started. Nothing has been tried by a player other than the author.
+Stages 1 to 3 are built (run loop, risk and noise, room events). Stage 4 is not started. Nothing has been tried by a player other than the author.
 
 ## Stage 1: the run loop
 
@@ -12,14 +12,14 @@ Stage 1 is the run loop, built now. Later stages are not started. Nothing has be
 
 ## Stage 2: risk and noise
 
-- [ ] 2.1 Listen, Search and Hide say their cost before they are chosen (R4)
-- [ ] 2.2 Noise levels per action, and a phantom that follows the loudest noise, in `phantomTurn` (R5)
-- [ ] 2.3 Re-prove 205 and 206 with the costs and the noise in force
+- [x] 2.1 Listen, Search and Hide say their cost before they are chosen (R4). Labels carry the noise and the cost; Search is new (once per room, very loud, rolled result).
+- [x] 2.2 Noise levels per action, and a phantom that follows the loudest noise, in `phantomTurn` (R5). Meter in bars and words, `ghost-step` and `ghost-heard` in 3D.
+- [x] 2.3 Re-prove 205 and 206 with the costs and the noise in force. 205 plays every way of paying (any searches, every noisy event); 200 standard houses and 60 served houses are never caught.
 
 ## Stage 3: the house surprises you
 
-- [ ] 3.1 The table of room events, each with sound, caption and speech, rolled by seed (R6)
-- [ ] 3.2 Prove events never change the maze or the proof
+- [x] 3.1 The table of room events, each with sound, caption and speech, rolled by seed (R6). Ten events; Fright softens the scary ones; the one picture effect is slow and still with reduced motion.
+- [x] 3.2 Prove events never change the maze or the proof. Property over 200 seeds in `skeleton/test/risk-and-events.test.ts`.
 
 ## Stage 4: relics carry over
 

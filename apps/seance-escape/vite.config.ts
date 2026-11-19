@@ -7,5 +7,6 @@ export default defineConfig({
   base: './',
   build: { target: 'es2022' },
   plugins: [offlinePlugin({ name: 'seance-escape' })],
-  test: { include: ['test/**/*.test.ts'], environment: 'node' },
+  // Serving a house proves it (about 0.15 s), and some tests serve dozens.
+  test: { include: ['test/**/*.test.ts'], environment: 'node', testTimeout: 120_000 },
 });

@@ -3,6 +3,7 @@ import { mulberry32 } from '../level';
 import { rankOf } from '../run';
 import { createScanner, type ScanOption, type Scanner } from '../scanning';
 import type { SemanticEvent, Speed } from '../types';
+import { rollRoomEvent } from './events';
 import {
   distancesFrom,
   fewestSteps,
@@ -10,6 +11,9 @@ import {
   neighbour,
   openings,
   opposite,
+  NOISE,
+  noiseBand,
+  phantomHears,
   phantomStart,
   phantomTurn,
   sameCell,
@@ -17,6 +21,7 @@ import {
   type Cell,
   type Dir,
   type Maze,
+  type NoiseBand,
   type PhantomNews,
   type PhantomState,
 } from './maze';
@@ -64,6 +69,16 @@ export const NAV_EVENTS = {
   ghostLost: 'ghost-lost',
   /** The phantom searched your hiding place, and moved on. */
   ghostSearched: 'ghost-searched',
+  /** The phantom heard a noise it was too far to hunt you for, and has gone to look. data: { angle, distance } */
+  ghostHeard: 'ghost-heard',
+  /** The phantom moved, within earshot. data: { angle, distance }, from where it is now. */
+  ghostStep: 'ghost-step',
+  /** The noise you are making changed band: quiet, loud or very loud. data: { level, band } */
+  noise: 'noise-meter',
+  /** A room was searched. data: { result: 'relic' | 'trail' | 'nothing', ... } */
+  search: 'walk-search',
+  /** A room event, rolled by seed the first time you walk in. data: { id, scary, effect, ... } */
+  roomEvent: 'room-event',
 } as const;
 
 export interface WalkSettings {
@@ -87,9 +102,14 @@ export interface WalkSettings {
   exitSenseEvery: number;
   /** A relic hums (if in range) every this many steps. */
   relicSenseEvery: number;
+  /** The choices say what they cost before they are chosen. */
+  listenLabel: string;
+  searchLabel: string;
   hideLabel: string;
   hintLabel: string;
   comeOutLabel: string;
+  /** The phantom's steps are sounded from where it is when it moves within this many rooms. */
+  ghostStepsHeard: number;
   /**
    * When to say where the phantom is at a stop: 'always', or 'changed' (the default): only when it is
    * near (ghostCallNear), when it has come closer or changed mood since the last stop, or in the chase. A far phantom
@@ -118,9 +138,12 @@ export const DEFAULT_WALK_SETTINGS: WalkSettings = {
   ghostSenseEvery: 2,
   exitSenseEvery: 5,
   relicSenseEvery: 3,
-  hideLabel: 'Hide',
-  hintLabel: 'Ask for a hint',
+  listenLabel: 'Listen: no noise, the phantom moves once',
+  searchLabel: 'Search: very loud, the phantom moves once',
+  hideLabel: 'Hide: no noise, you wait, and it may search here',
+  hintLabel: 'Ask for a hint: the phantom moves once',
   comeOutLabel: 'Come out',
+  ghostStepsHeard: 4,
 };
 
 export function resolveWalkSettings(input: WalkSettingsInput = {}): WalkSettings {
@@ -182,6 +205,12 @@ export interface WalkSnapshot {
   chasing: boolean;
   hides: number;
   hints: number;
+  searches: number;
+  /** Room events that have happened. */
+  events: number;
+  /** The noise you are making now, 0 to 3, and its band. */
+  noise: number;
+  noiseBand: NoiseBand;
 }
 
 export interface Walk {
@@ -232,6 +261,13 @@ export function createWalk(options: WalkOptions): Walk {
   let listens = 0;
   let hides = 0;
   let hints = 0;
+  let searches = 0;
+  let eventsSeen = 0;
+  /** Rooms searched this run, by cell index: a room can be searched once. */
+  const searched = new Set<number>();
+  /** The noise you make now, 0 to 3. It falls by one a turn after a loud thing. */
+  let meter = 0;
+  let meterBand: NoiseBand = 'quiet';
   let lastListenStep = -Infinity;
   let phase: WalkSnapshot['phase'] = 'walking';
   let nextStepAt = options.startMs;
@@ -313,9 +349,21 @@ export function createWalk(options: WalkOptions): Walk {
     beginScan(nowMs);
   };
 
+  /** Set the noise you are making. Said, shown and sounded only when it changes band. */
+  const setMeter = (level: number, nowMs: number): void => {
+    meter = Math.max(0, Math.min(3, level));
+    const band = noiseBand(meter);
+    if (band === meterBand) return;
+    meterBand = band;
+    send(NAV_EVENTS.noise, { level: meter, band }, nowMs);
+  };
+
   const share = (news: readonly PhantomNews[], nowMs: number): void => {
     for (const n of news) {
-      if (n === 'hunts') {
+      if (n === 'heard') {
+        const g = bearing(phantom.at);
+        send(NAV_EVENTS.ghostHeard, { angle: g.angle, distance: Math.min(1, g.rooms / settings.hearRange) }, nowMs);
+      } else if (n === 'hunts') {
         const g = bearing(phantom.at);
         send(NAV_EVENTS.ghostHunts, { angle: g.angle, distance: Math.min(1, g.rooms / settings.hearRange) }, nowMs);
       } else if (n === 'lost') send(NAV_EVENTS.ghostLost, undefined, nowMs);
@@ -359,10 +407,23 @@ export function createWalk(options: WalkOptions): Walk {
   };
 
   /** One turn of the phantom. Returns true if it caught the player. */
-  const phantomMoves = (nowMs: number, how: { hidden?: boolean; force?: boolean } = {}): boolean => {
-    const turn = phantomTurn(maze, phantom, cell, { hidden: how.hidden === true, chasing, ...(how.force ? { force: true } : {}) });
+  const phantomMoves = (nowMs: number, how: { hidden?: boolean; force?: boolean; noise?: number } = {}): boolean => {
+    const before = phantom.at;
+    const turn = phantomTurn(maze, phantom, cell, {
+      hidden: how.hidden === true,
+      chasing,
+      noise: how.noise ?? (chasing ? NOISE.run : NOISE.walk),
+      ...(how.force ? { force: true } : {}),
+    });
     phantom = turn.state;
     share(turn.news, nowMs);
+    // Its feet, from where it is now, in 3D.
+    if (!sameCell(before, phantom.at) && !turn.caught) {
+      const g = bearing(phantom.at);
+      if (g.rooms <= settings.ghostStepsHeard) {
+        send(NAV_EVENTS.ghostStep, { angle: g.angle, distance: Math.min(1, g.rooms / (settings.ghostStepsHeard + 1)) }, nowMs);
+      }
+    }
     if (turn.caught) {
       caught(nowMs);
       return true;
@@ -394,33 +455,49 @@ export function createWalk(options: WalkOptions): Walk {
     }
     spokeThisLeg = true;
     // Holding your breath to listen costs time where you stand: the phantom moves.
-    if (costsAStep) phantomMoves(nowMs, { force: true });
+    if (costsAStep) phantomMoves(nowMs, { force: true, noise: NOISE.listen });
   };
 
-  /** A hint: which way leads to the nearest relic (or, once they are all found, to the exit). */
-  const hint = (nowMs: number, free = false): void => {
-    if (!free) hints += 1;
+  /** Which way leads to the nearest relic (or, once they are all found, to the exit). */
+  const hintData = (): { what: 'relic' | 'exit'; way: string; rooms: number; found: number; total: number } => {
     const left = relicsLeft();
     const fromHere = distancesFrom(maze, cell);
     const target = left.length > 0 ? [...left].sort((a, b) => fromHere[indexOf(maze, a)]! - fromHere[indexOf(maze, b)]!)[0]! : maze.exit;
     const next = stepToward(maze, cell, target);
     const dir = next ? openings(maze, cell).find((d) => sameCell(neighbour(cell, d), next)) : undefined;
     const way = dir === undefined ? 'here' : RELATIVE.find(({ rel }) => ((facing + rel) % 4) === dir)!.way;
-    sendAfter(
-      NAV_EVENTS.hint,
-      {
-        what: left.length > 0 ? 'relic' : 'exit',
-        way,
-        rooms: fromHere[indexOf(maze, target)]!,
-        found: maze.relics.length - left.length,
-        total: maze.relics.length,
-        ...(free ? { free: true } : {}),
-      },
-      nowMs,
-    );
+    return { what: left.length > 0 ? 'relic' : 'exit', way, rooms: fromHere[indexOf(maze, target)]!, found: maze.relics.length - left.length, total: maze.relics.length };
+  };
+
+  /** A hint, asked for. */
+  const hint = (nowMs: number, free = false): void => {
+    if (!free) hints += 1;
+    sendAfter(NAV_EVENTS.hint, { ...hintData(), ...(free ? { free: true } : {}) }, nowMs);
     if (free) return; // a hint given after a catch costs nothing: the phantom does not move
     spokeThisLeg = true;
-    phantomMoves(nowMs, { force: true });
+    phantomMoves(nowMs, { force: true, noise: NOISE.walk });
+  };
+
+  /** Search the room: it makes a very loud noise and costs a turn. What turns up is rolled by the seed and the room. */
+  const search = (nowMs: number): void => {
+    searches += 1;
+    searched.add(indexOf(maze, cell));
+    const roll = mulberry32(((maze.seed ^ 0x5ea4c8) + Math.imul(indexOf(maze, cell) + 1, 2654435761)) >>> 0);
+    roll();
+    const r = roll();
+    const left = relicsLeft().length;
+    // A relic hint, the phantom's trail, or nothing but dust.
+    const result = r < 0.5 && left > 0 ? 'relic' : r < 0.78 ? 'trail' : 'nothing';
+    let data: Record<string, unknown> = { result };
+    if (result === 'relic') data = { result, ...hintData() };
+    else if (result === 'trail') {
+      const g = bearing(phantom.at);
+      data = { result, angle: g.angle, rooms: Math.round(g.rooms), near: g.rooms <= settings.listenRange };
+    }
+    setMeter(NOISE.search, nowMs);
+    sendAfter(NAV_EVENTS.search, data, nowMs);
+    spokeThisLeg = true;
+    phantomMoves(nowMs, { force: true, noise: NOISE.search });
   };
 
   /** The choices where the player stands: each way, Listen, and in a ritual house Hide and a hint. */
@@ -430,7 +507,8 @@ export function createWalk(options: WalkOptions): Walk {
       const d = ((facing + rel) % 4) as Dir;
       return ways.includes(d) ? [{ id: `dir:${d}`, label, angle }] : [];
     });
-    choices.push({ id: 'listen', label: 'Listen' });
+    choices.push({ id: 'listen', label: settings.listenLabel });
+    if (ritualHouse && !chasing && !searched.has(indexOf(maze, cell))) choices.push({ id: 'search', label: settings.searchLabel });
     if (hideAt.has(indexOf(maze, cell)) && !chasing) choices.push({ id: 'hide', label: settings.hideLabel });
     if (ritualHouse) choices.push({ id: 'hint', label: settings.hintLabel });
     return choices;
@@ -445,6 +523,27 @@ export function createWalk(options: WalkOptions): Walk {
     // The one line of the leg: where the phantom is now. If the player already listened on the way, that was it.
     if (!spokeThisLeg) announceGhost(nowMs);
     offer(choices, nowMs);
+  };
+
+  /** The room's event, rolled by seed when you first walk in. Its effect is information or noise, never the maze. */
+  const roomEvent = (room: number, nowMs: number): void => {
+    const event = rollRoomEvent(maze.seed, room);
+    if (!event) return;
+    eventsSeen += 1;
+    const data: Record<string, unknown> = { id: event.id, scary: event.scary, effect: event.effect.kind };
+    if (event.effect.kind === 'hint') Object.assign(data, hintData());
+    else if (event.effect.kind === 'ghost-place') {
+      const g = bearing(phantom.at);
+      Object.assign(data, { angle: g.angle, rooms: Math.round(g.rooms) });
+    } else if (event.effect.kind === 'noise') Object.assign(data, { level: event.effect.level });
+    sendAfter(NAV_EVENTS.roomEvent, data, nowMs);
+    if (event.effect.kind === 'noise') {
+      // A noise the phantom may hear: it pulls the phantom toward this room (see phantomHears).
+      setMeter(event.effect.level, nowMs);
+      const heard = phantomHears(maze, phantom, cell, event.effect.level, true);
+      phantom = heard.state;
+      share(heard.news, nowMs);
+    }
   };
 
   /** Arrive in a room: escape, find a relic, carry on down a passage, turn at a dead end, or stop and choose. */
@@ -462,6 +561,7 @@ export function createWalk(options: WalkOptions): Walk {
     if (room !== undefined) {
       sendAfter(NAV_EVENTS.room, { room, first, hide: hideAt.has(indexOf(maze, cell)), relicHere: relicAt >= 0 }, nowMs);
     }
+    if (room !== undefined && first && !chasing && !sameCell(cell, maze.start)) roomEvent(room, nowMs);
     if (relicAt >= 0) {
       found[relicAt] = true;
       const count = found.filter(Boolean).length;
@@ -497,6 +597,8 @@ export function createWalk(options: WalkOptions): Walk {
   const step = (nowMs: number): void => {
     cell = neighbour(cell, facing);
     steps += 1;
+    // A loud thing dies away a turn at a time; your steps are quiet, and running from the phantom is louder.
+    setMeter(Math.max(chasing ? NOISE.run : NOISE.walk, meter - 1), nowMs);
     send(NAV_EVENTS.step, { steps }, nowMs);
     if (sameCell(cell, phantom.at)) return caught(nowMs);
     if (phantomMoves(nowMs)) return;
@@ -509,6 +611,7 @@ export function createWalk(options: WalkOptions): Walk {
     cell = junction?.cell ?? maze.start;
     facing = junction?.facing ?? initial;
     phantom = phantomStart(maze);
+    setMeter(NOISE.walk, nowMs);
     spokeThisLeg = false;
     if (junction === null) steps = 0; // caught before the first choice: begin the house again
     // A player caught again and again is lost: point the way, for free, before the choices.
@@ -519,7 +622,7 @@ export function createWalk(options: WalkOptions): Walk {
 
   /** While hidden, time passes a step at a time: you hear it come, search, and go. */
   const hiddenTick = (nowMs: number): void => {
-    phantomMoves(nowMs, { hidden: true });
+    phantomMoves(nowMs, { hidden: true, noise: NOISE.hide });
     const g = bearing(phantom.at);
     if (g.rooms <= settings.hearRange) {
       send(NAV_EVENTS.ghostSense, { angle: g.angle, distance: Math.min(1, g.rooms / settings.hearRange), rooms: Math.round(g.rooms) }, nowMs);
@@ -570,24 +673,26 @@ export function createWalk(options: WalkOptions): Walk {
       if ((phase !== 'choosing' && phase !== 'hidden') || !scanner || scanStartAt !== null) return; // nothing to choose until the options are being read
       const chosen = scanner.press();
       if (!chosen) return;
-      if (chosen.id === 'listen' || chosen.id === 'hint') {
+      if (chosen.id === 'listen' || chosen.id === 'hint' || chosen.id === 'search') {
         if (chosen.id === 'listen') listen(nowMs, phase === 'choosing');
+        else if (chosen.id === 'search') search(nowMs);
         else hint(nowMs);
         if (phase === 'choosing' || phase === 'hidden') {
-          // Hear the whole answer first, then read the options again from the top.
-          offer([...optionsNow], nowMs);
+          // Hear the whole answer first, then read the options again from the top (a searched room no longer offers Search).
+          offer(chosen.id === 'search' && phase === 'choosing' ? choicesHere() : [...optionsNow], nowMs);
         }
         return;
       }
       if (chosen.id === 'hide') {
         hides += 1;
+        setMeter(NOISE.hide, nowMs);
         phase = 'hidden';
         nextTickAt = nowMs + stepMs;
         sendAfter(NAV_EVENTS.hide, undefined, nowMs);
         offer(
           [
             { id: 'come-out', label: settings.comeOutLabel },
-            { id: 'listen', label: 'Listen' },
+            { id: 'listen', label: settings.listenLabel },
           ],
           nowMs,
         );
@@ -624,6 +729,10 @@ export function createWalk(options: WalkOptions): Walk {
       chasing,
       hides,
       hints,
+      searches,
+      events: eventsSeen,
+      noise: meter,
+      noiseBand: meterBand,
     }),
   };
 }

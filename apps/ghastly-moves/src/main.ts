@@ -27,6 +27,7 @@ import { drawMap } from './map';
 import { bossTells, throwByName, THROW_LEAD, type Tell } from './pattern';
 import {
   describeNext,
+  bestWords,
   farKey,
   itemsWon,
   mapLines,
@@ -85,6 +86,8 @@ const selectedTable = (): number => Number(tableSelect.value) || DEFAULT_TABLE;
 // ---- the story -------------------------------------------------------------
 
 let progress: Progress = parseProgress(saved(PROGRESS_KEY));
+// The furthest share passed in one clean stretch, per stage and boss. Shown on the map and in the lists.
+let far: Far = parseFar(saved(FAR_KEY));
 const persist = (): void => save(PROGRESS_KEY, JSON.stringify(progress));
 
 const stageSelect = element<HTMLSelectElement>('stage');
@@ -97,11 +100,12 @@ function fillStages(): void {
     ...STAGES.map((s) => {
       const rank = progress.best[String(s.id)];
       const done = progress.cleared.includes(s.id) ? ', boss beaten' : '';
-      return new Option(`Stage ${s.id}: ${s.name}, ${s.rule}${done}${rank ? `, best rank ${rank}` : ''}`, String(s.id));
+      const furthest = bestWords(far, s.id);
+      return new Option(`Stage ${s.id}: ${s.name}, ${s.rule}${done}${rank ? `, best rank ${rank}` : ''}${furthest ? `, ${furthest.replace(/\.$/, '').replace(/\. /g, ', ')}` : ''}`, String(s.id));
     }),
   );
   stageSelect.value = keep;
-  mapList.replaceChildren(...mapLines(progress).map((line) => Object.assign(document.createElement('li'), { textContent: line })));
+  mapList.replaceChildren(...mapLines(progress, far).map((line) => Object.assign(document.createElement('li'), { textContent: line })));
 }
 fillStages();
 // A saved choice wins, including "free practice" (empty). Otherwise the story picks up at the next stage.
@@ -143,7 +147,6 @@ let lockoutUntil = 0;
 let attemptsAtStart = 0;
 
 // How the run is going: progress, attempt and best, for the canvas, the live region and the new-best sound.
-let far: Far = parseFar(saved(FAR_KEY));
 let farNow = 't3';
 let newBestPlayed = false;
 /** The best saved when this attempt began, so "new best" means beating what was there. */
@@ -431,6 +434,7 @@ function finish(): void {
   falling = false;
   hud = '';
   lockoutUntil = performance.now() + 1500; // a stray press must not restart at once
+  fillStages(); // the furthest run is in the stage list and the map text
 
   if (was === 'stage' && played) {
     progress = withRank(progress, played.id, rank);
@@ -486,6 +490,7 @@ function toMenu(): void {
   lastSnapshot = null;
   falling = false;
   hud = '';
+  fillStages();
   adapter.cancelPending({ silence: true });
   menus.close();
   if (profile.scanning && soundUnlocked) openMenus(performance.now());
@@ -511,7 +516,7 @@ function mainEntries(): MenuEntry[] {
       kind: 'setting',
       id: 'stage',
       name: 'Stage',
-      choices: [{ label: 'Free practice' }, ...STAGES.map((st) => ({ label: `${st.id}, ${st.name}, ${st.rule}` }))],
+      choices: [{ label: 'Free practice' }, ...STAGES.map((st) => ({ label: `${st.id}, ${st.name}, ${st.rule}${bestWords(far, st.id) ? `. ${bestWords(far, st.id)}` : ''}` }))],
       current: () => (selectedStage() ? STAGES.indexOf(selectedStage()!) + 1 : 0),
     },
     {
@@ -731,10 +736,11 @@ function frame(): void {
         hud,
         items: itemsWon(progress).map((i) => i.id),
         boss,
+        pattern: boss ? stage?.boss.pattern : undefined,
         stats: lastSnapshot ? { percent: percentNow(lastSnapshot), attempt: lastSnapshot.falls + 1, best: Math.max(bestNow(), percentNow(lastSnapshot)) } : null,
       });
     } else {
-      drawMap(ctx!, profile, { progress, selected: selectedStage()?.id ?? 0, nowMs: now });
+      drawMap(ctx!, profile, { progress, selected: selectedStage()?.id ?? 0, nowMs: now, far });
       const view = mode === 'menu' ? menus.view() : null;
       if (view) drawMenu(ctx!, profile, { x: WIDTH - 440, y: 20, width: 420, height: HEIGHT - 150 }, view);
     }

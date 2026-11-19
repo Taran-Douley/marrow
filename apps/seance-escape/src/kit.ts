@@ -1,5 +1,5 @@
 import { createKit, type EventPresentation, type Kit, type TrackSpec } from '@marrow/skeleton';
-import { RELICS, ROOM_STYLES, type RoomKind } from './content';
+import { GHOST_HEARD, NOISE_WORDS, RELICS, ROOM_EVENT_STYLES, ROOM_STYLES, type RoomKind } from './content';
 
 /**
  * The house's music: a slow music box over a low drone, with a clock that starts ticking as the
@@ -85,6 +85,25 @@ export function createSeanceKit(options: SeanceKitOptions = {}): Kit {
       haptic: [20, 40, 20],
     };
   });
+
+  // The room events: each is heard, written and said, from somewhere in the room. A scary one is softened by Fright.
+  const roomEvents: Record<string, EventPresentation> = {};
+  for (const [id, style] of Object.entries(ROOM_EVENT_STYLES)) {
+    const sound = { hz: style.sound.hz, wave: style.sound.wave, gain: style.sound.gain, role: 'effect' as const, shape: style.sound.shape };
+    roomEvents[`room-event-${id}`] = {
+      spatial: true,
+      say: '{line}',
+      caption: '{caption}',
+      sound: style.soft ? scare(fright, sound) : sound,
+      ...(style.haptic ? { haptic: style.haptic } : {}),
+    };
+  }
+  // The noise meter: a soft tick for quiet, a firmer one for loud, a rasp for very loud. Said and written, too.
+  const noiseMeter: Record<string, EventPresentation> = {
+    'noise-meter-quiet': { say: NOISE_WORDS.quiet.say, caption: NOISE_WORDS.quiet.caption, sound: { hz: 220, wave: 'sine', gain: 0.3, role: 'effect', shape: { hzTo: 180, seconds: 0.2 } } },
+    'noise-meter-loud': { say: NOISE_WORDS.loud.say, caption: NOISE_WORDS.loud.caption, sound: { hz: 440, wave: 'triangle', gain: 0.5, role: 'effect', shape: { hzTo: 520, seconds: 0.3 } }, haptic: [40] },
+    'noise-meter-very-loud': { say: NOISE_WORDS['very loud'].say, caption: NOISE_WORDS['very loud'].caption, sound: { hz: 660, wave: 'square', gain: 0.5, role: 'effect', shape: { hzTo: 880, filterHz: 2400, seconds: 0.4 } }, haptic: [60, 30, 60] },
+  };
 
   return createKit({
     audio: { keyHz: 55, track: options.chase ? CHASE_TRACK : HOUSE_TRACK },
@@ -173,6 +192,21 @@ export function createSeanceKit(options: SeanceKitOptions = {}): Kit {
         sound: { hz: 0, wave: 'sine', gain: 0.6, shape: { noise: true, filterHz: 700, filterTo: 1800, seconds: 0.5 } },
       },
       'walk-listen': { say: '{summary}', caption: '{summary}' },
+      // A search: loud. What it turns up is said, and written.
+      'walk-search': {
+        say: '{line}',
+        caption: '{caption}',
+        sound: { hz: 0, wave: 'sine', gain: 0.7, role: 'effect', shape: { noise: true, filterHz: 3600, filterTo: 700, seconds: 0.9 } },
+        haptic: [40, 30, 40, 30, 40],
+      },
+      // The phantom heard a noise it was too far to hunt you for. It comes from where it is.
+      'ghost-heard': {
+        spatial: true,
+        say: GHOST_HEARD.say,
+        caption: GHOST_HEARD.caption,
+        sound: scare(fright, { hz: 392, wave: 'triangle', gain: 0.55, role: 'effect', shape: { hzTo: 262, filterHz: 1000, seconds: 0.9 } }),
+        haptic: [40, 60, 40],
+      },
       // The phantom whispers from where it is: louder and brighter the nearer it is.
       'ghost-sense': {
         spatial: true,
@@ -228,6 +262,8 @@ export function createSeanceKit(options: SeanceKitOptions = {}): Kit {
         haptic: [20, 40, 20],
       },
       ...relicHums,
+      ...roomEvents,
+      ...noiseMeter,
       ...roomSounds,
       // Your feet, by floor: old boards creak and thud, stone clicks and rings, carpet hushes.
       'step-wood': {

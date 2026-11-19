@@ -18,8 +18,8 @@ Stage 1 has no portals by design: it teaches the beat. Portals already exist per
 
 ## Later stages
 
-- [ ] 10. Patterns for the other six bosses, each with its own throws, sounds and tells
-- [ ] 11. A seen portal gate: a gate drawn on the way, so a change of move is seen before it is heard (pillar 3)
-- [ ] 12. Beat pulses on the obstacles, and a pulse per stage look
-- [ ] 13. Per-stage best on the story map
+- [x] 10. Patterns for the other six bosses, each with its own throws, sounds and tells. Done 2026-11-19 in `src/patterns.ts`: two kinds for the Bone Warden and the Moss Witch, three for the other four, 6 to 9 volleys each; proofs 15, 19, 20, 22, 23 pass on 250 seeds each. Not tried by ear.
+- [x] 11. A seen portal gate: a gate drawn on the way, so a change of move is seen before it is heard (pillar 3). Done: `drawPortalGate` in `art.ts`, drawn by `scene.ts` at each portal of the level, with the new mode in words and a mark that differs by mode.
+- [x] 12. Beat pulses on the obstacles, and a pulse per stage look. Done: `PULSE_LOOK` in `art.ts` (a colour and a sky, horizon or ground wash for each place) and a halo behind every obstacle, all at most `PULSE_MAX_ALPHA`, none with reduced motion. No extra scenery layers: the existing three per place already match each Scenery.
+- [x] 13. Per-stage best on the story map. Done: the map, the stage list and the scanning menu say "Best run 62%. Boss best 40%." (`bestWords` in `progress.ts`).
 - [ ] 14. Tune the songs, tells and bomb pitches with real players, including blind players

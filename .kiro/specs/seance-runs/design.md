@@ -22,15 +22,17 @@ Time it counts:
 
 ### Measured: the standard house (12 by 10, 3 relics)
 
-207 passes for 56 of 240 seeds (23%); the other 184 are skipped. All 240 pass 201 to 206. Over 60 served houses (clean-run minutes, min / median / max):
+Before the fix, 207 passed for 56 of 240 seeds (23%): 118 houses were too short, 66 too long, and the game skipped 3 in 4 seeds. A clean run varies a lot with how soon the explorer finds the last relic, and the nine profiles span about 1.3 times between the quickest (fast, 1500 ms) and the slowest (slow, 4000 ms), so only a house whose quickest run is 5.0 to 6.2 minutes fits.
+
+The fix is in the generator, not the proof: `generateMaze(seed, { fit })` lays the house out again (a new carving, relics and rooms from the same seed, in a fixed order) until `fit` accepts the layout, before the phantom is placed. The game passes `fit` = property 207 itself, so the band is still 5 to 8 minutes, the explorer is unchanged, and content is the same at every speed and dwell. Now 240 of 240 seeds pass 201 to 207 for all 9 profiles (cost: about 0.15 s to serve a house). Level Forge's `prove_house` with `runLength: true` lays the house out the same way. Over the first 60 served houses (clean-run minutes, min / median / max):
 
 | Speed | Dwell 1500 | Dwell 2200 | Dwell 4000 |
 | --- | --- | --- | --- |
-| Slow | 6.04 / 6.90 / 7.43 | 6.16 / 7.06 / 7.57 | 6.46 / 7.45 / 7.97 |
-| Medium | 5.49 / 6.26 / 6.67 | 5.60 / 6.40 / 6.82 | 5.90 / 6.76 / 7.29 |
-| Fast | 5.06 / 5.71 / 6.17 | 5.19 / 5.88 / 6.33 | 5.49 / 6.24 / 6.77 |
+| Slow | 5.81 / 6.83 / 7.40 | 5.97 / 6.98 / 7.55 | 6.38 / 7.41 / 8.00 |
+| Medium | 5.38 / 6.16 / 6.71 | 5.53 / 6.31 / 6.88 | 5.92 / 6.73 / 7.39 |
+| Fast | 5.03 / 5.65 / 6.24 | 5.18 / 5.82 / 6.43 | 5.49 / 6.19 / 6.95 |
 
-One house size fits every profile, because the houses that fit all nine are chosen by the proof, and the content is the same for everyone. A house that is 5.0 at fast, 1500 ms is at most about 6.5 at slow, 4000 ms, so the window exists. A real player, who listens, hides and is caught, takes longer than the clean run. This is an estimate, not a measurement of players.
+One house fits every profile, because the layout is chosen to fit all nine, and the content is the same for everyone. A house that is 5.0 at fast, 1500 ms is at most about 6.5 at slow, 4000 ms, so the window exists. A real player, who listens, hides and is caught, takes longer than the clean run. This is an estimate, not a measurement of players.
 
 ## 3. Three catches end a run (built)
 
@@ -38,17 +40,43 @@ One house size fits every profile, because the houses that fit all nine are chos
 
 The setting `seance.catches` (`on` / `off`) is in the scanning menu ("Catches end a run: On: three catches end a run / Off: no limit") and on the page form (a checkbox). Off keeps the old behaviour.
 
-## 4. Choices with a told risk (design)
+## 4. Choices with a told risk (built, stage 2)
 
-Each of the three has a cost the option says before it is chosen. Listen: "Listen, the phantom moves once". Search: "Search, noisy". Hide: "Hide, you wait". The costs are already in the walk (Listen and Hint force one phantom move, Hide passes time while the phantom prowls). Search is new: it makes a loud noise (section 5) and gives a hint or a perk charge. The proof for 205 and 206 is rerun with each action's cost in force.
+Each choice says its cost in its own spoken and written label, before it is chosen:
 
-## 5. Noise tracking and 3D audio (design)
+- "Listen: no noise, the phantom moves once". Silent. It costs a turn.
+- "Search: very loud, the phantom moves once". New. Offered once per room, in a ritual house, never in the chase. It makes a very loud noise (noise 3). What it turns up is rolled by the house seed and the room: a relic hint (about half the rooms, while relics are left), the phantom's trail (where it is), or only dust.
+- "Hide: no noise, you wait, and it may search here". A hidden player is never caught, but time passes, and the phantom may come to the wardrobe it heard you go into (it follows the last noise made there), search it and move on.
+- "Ask for a hint: the phantom moves once" (Mabel, "Ask Mabel: the phantom moves once" in the game). Quiet (noise 1).
 
-Add a noise level to each action: walking 1, searching 3, listening 0, running (in the chase) 2. The phantom prowls toward the loudest noise made within hearing range in the last few moves, instead of a random room, and hunts when a noise is within `PHANTOM_NOTICE`. This stays in `phantomTurn`, which the walk and the proof share, so the proof checks the same phantom. Its steps and moans already use `ghost-step`, `ghost-moan` and `ghost-sense` with an angle and a distance, which the web adapter places in 3D audio.
+The labels are `listenLabel`, `searchLabel`, `hideLabel` and `hintLabel` in `WalkSettings`. The ids (`listen`, `search`, `hide`, `hint`) are unchanged. The proof for 205 is rerun with the costs in force (section 5).
 
-## 6. Room events (design)
+## 5. Noise tracking and 3D audio (built, stage 2)
 
-A table of about eight events, rolled once per room per run from a seeded generator (house seed and room index), so a house is repeatable. Each has a sound, a caption and a spoken line, and an effect that is information or a small cost. Examples: a door slams (noise, the phantom hears it), a cold draught (a relic hint), a music box starts (a landmark), the lights gutter (nothing, picture only, with reduced motion nothing). No event removes a sense or asks for timing. Events never change the maze, so 201 to 207 are not affected. Events that add noise are included in the proof of 205 and 206 as extra phantom pull.
+Noise levels (`NOISE` in `skeleton/src/navigation/maze.ts`): listening 0, hiding 0, walking 1, running in the chase 2, searching 3. The phantom hears a noise of level n within `hearRadius(n)` = 2 + n rooms along the passages (walking is 3, as before; silence only beside you) and hunts. A little farther, up to 2 more rooms (`INVESTIGATE_EXTRA`), it only hears something: it remembers the place (`PhantomState.heard`; the loudest recent noise wins; forgotten after 5 turns), prowls to it instead of a random room, and the walk says `ghost-heard`. A noise made while hidden is not heard. This is in `phantomTurn` and `phantomHears`, which the walk and the proof share, so the proof checks the same phantom.
+
+Told three ways. The noise meter (`noise-meter` event, `snapshot.noise`) has three bands: quiet (0 to 1), loud (2), very loud (3). A loud thing dies away one level a turn. Only a change of band is told: each band has its own tone, a caption ("Noise: very loud") and a spoken word, and a meter of bars and the words is drawn bottom right (never colour alone). The phantom's moves are `ghost-step` events sent by the walk, with the angle and distance from the player, within 4 rooms, and placed in 3D by the web adapter; `ghost-heard` and `ghost-sense` are spatial too.
+
+Proof (205): `simulateRitual` plays the best route under every way of paying the costs: every noisy room event of the route is heard, and a search (noise 3, the phantom moves once) in any subset of the relic rooms but the last. The result is the worst of them, and the generator picks the phantom's start by it, so every served house is never caught and keeps the 2-room gap however the player pays. Generating costs about 0.15 s a house; the layout limit for a ritual house rose from 160 to 400 tries. At the old test size of 6 by 6, 31 of 200 seeds now have no fair house (they were all buildable before); the game's own sizes (8 by 8, 12 by 10, 14 by 14) build every seed tried.
+
+## 6. Room events (built, stage 3)
+
+Ten events (`ROOM_EVENTS` in `skeleton/src/navigation/events.ts`), rolled once per room, the first time you walk in, from the house seed and the room number (`rollRoomEvent`), so a house is repeatable. About 45% of rooms have one. Never the start room, never in the chase. The skeleton holds the mechanics, the game (`content.ts`) the sound, caption and line of each, and `kit.ts` the kit events `room-event-<id>`. Scary ones have a soft line and a sound softened by Fright (gentle, or a plain chime when off). Nothing flashes more than 3 times a second: the one event with a picture, `lights-gutter`, dims the room slowly (at most 1.5 swings a second; `EVENT_FLICKER_MAX_HZ` is 2), and with reduced motion it only dims and recovers.
+
+| Event | Scary | Effect |
+| --- | --- | --- |
+| door-slam | yes | noise 3: the phantom may hear it |
+| chains-rattle | yes | noise 2 |
+| cold-draught | no | a hint toward the nearest relic (or the bell) |
+| whispers-in-the-walls | no | says where the phantom is |
+| music-box | no | a landmark, from a place in the room |
+| lights-gutter | no | the room dims for a moment |
+| portrait-watches | yes | nothing |
+| clock-strikes | no | nothing |
+| cold-hand | yes | nothing |
+| scratching | yes | nothing |
+
+Events never change the maze, so 201 to 204, 206 and 207 are not affected. The noisy events are part of the proof of 205 (section 5). Property tests over 200 seeds check that playing a house with its events leaves the maze and its proof results unchanged (`skeleton/test/risk-and-events.test.ts`).
 
 ## 7. Relics carry over, perks chosen by scanning (design)
 

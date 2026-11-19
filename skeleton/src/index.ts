@@ -28,7 +28,17 @@ export {
   pathBetween,
   phantomStart,
   phantomTurn,
+  phantomHears,
   simulateRitual,
+  NOISE,
+  hearRadius,
+  noiseBand,
+  INVESTIGATE_EXTRA,
+  NOISE_MEMORY,
+  ROOM_EVENTS,
+  EVENT_CHANCE,
+  EVENT_FLICKER_MAX_HZ,
+  rollRoomEvent,
   proveRunLength,
   exploreHouse,
   estimateRunMs,
@@ -40,8 +50,8 @@ export {
   RUN_SPEEDS,
   RUN_DWELLS,
 } from './navigation';
-export type { PhantomState, PhantomNews, ProveMazeOptions, RunLengthOptions, Exploration, ExploreOptions, RunLines, RunProfile } from './navigation';
-export type { Maze, MazeOptions, Cell, Dir, Walk, WalkOptions, WalkSnapshot, WalkSettings, WalkSettingsInput } from './navigation';
+export type { RoomEventDef, RoomEventEffect, NoiseBand, PhantomState, PhantomNews, ProveMazeOptions, RunLengthOptions, Exploration, ExploreOptions, RunLines, RunProfile } from './navigation';
+export type { Maze, MazeOptions, HouseLayout, Cell, Dir, Walk, WalkOptions, WalkSnapshot, WalkSettings, WalkSettingsInput } from './navigation';
 export {
   aimTimes,
   normalCdf,

@@ -1,4 +1,5 @@
 import { mulberry32 } from '../level';
+import { rollRoomEvent } from './events';
 
 // The navigation pattern's world: a maze with a start, an exit and a phantom.
 // It is built so that it can always be escaped: the phantom never starts where it
@@ -66,9 +67,18 @@ export interface MazeOptions {
   hides?: number;
   chase?: { moves: number; per: number };
   ritualGap?: number;
+  /**
+   * Choose the house by what it is like to play. Called with each laid-out house (the passages, rooms,
+   * relics, start and exit) before the phantom is placed. If it says no, the next layout for the seed is
+   * tried. A game uses it to keep the run length in its band. Still the same house for the same seed.
+   */
+  fit?: (house: HouseLayout) => boolean;
 }
 
-export const DEFAULT_MAZE: Required<MazeOptions> = {
+/** What a house is before the phantom is placed: enough to walk it and judge its length. */
+export type HouseLayout = Pick<Maze, 'seed' | 'width' | 'height' | 'open' | 'start' | 'exit' | 'rooms' | 'relics' | 'hides' | 'ritualRoute'>;
+
+export const DEFAULT_MAZE: Required<Omit<MazeOptions, 'fit'>> = {
   width: 8,
   height: 8,
   ghostEvery: 2,
@@ -85,26 +95,76 @@ export const DEFAULT_MAZE: Required<MazeOptions> = {
  * until the last relic is found, then at the chase rate, always by the shortest way to the player.
  * Returns the nearest it came (in rooms, along the passages), and where.
  */
-export function simulateRitual(m: PhantomMaze & Pick<Maze, 'ritualRoute'>): {
+export function simulateRitual(
+  m: PhantomMaze & Pick<Maze, 'ritualRoute'>,
+  /**
+   * The costs in force. Left out, the best player is judged under every way of paying them: the noisy room events of
+   * the route are always heard, and they may SEARCH (very loud, the phantom moves once) in any of the relic rooms but
+   * the last. The result is the worst of them. Say `{ searches: [...] }` to judge one way only: the relic numbers
+   * (by order on the route) searched in, none for `[]`.
+   */
+  costs: { searches?: readonly number[]; events?: boolean } = {},
+): {
   nearest: number;
   at: number;
   caught: boolean;
 } {
+  if (costs.searches !== undefined) return simulateOnce(m, costs.searches, costs.events ?? true);
   const route = m.ritualRoute;
-  const lastRelicStep = m.relics.length === 0 ? Infinity : Math.max(...m.relics.map((r) => route.findIndex((c) => sameCell(c, r))));
+  const steps = m.relics.map((r) => route.findIndex((c) => sameCell(c, r))).sort((a, b) => a - b);
+  const searchable = steps.slice(0, -1).map((_, i) => i); // every relic room but the last
+  let worst = { nearest: Infinity, at: 0, caught: false };
+  for (let mask = 0; mask < 1 << searchable.length; mask++) {
+    const result = simulateOnce(m, searchable.filter((_, i) => (mask & (1 << i)) !== 0), costs.events ?? true);
+    if (result.caught) return result;
+    if (result.nearest < worst.nearest) worst = result;
+  }
+  return worst;
+}
+
+function simulateOnce(
+  m: PhantomMaze & Pick<Maze, 'ritualRoute'>,
+  searchAt: readonly number[],
+  events: boolean,
+): { nearest: number; at: number; caught: boolean } {
+  const route = m.ritualRoute;
+  const relicSteps = m.relics.map((r) => route.findIndex((c) => sameCell(c, r))).sort((a, b) => a - b);
+  const lastRelicStep = m.relics.length === 0 ? Infinity : Math.max(...relicSteps);
+  const searchSteps = new Set(searchAt.map((i) => relicSteps[i]!));
   let phantom = phantomStart(m);
   let nearest = Infinity;
   let at = 0;
-  for (let k = 1; k < route.length; k++) {
-    const player = route[k]!;
-    if (sameCell(player, phantom.at)) return { nearest: 0, at: k, caught: true };
-    const turn = phantomTurn(m, phantom, player, { hidden: false, chasing: k > lastRelicStep });
-    phantom = turn.state;
-    if (turn.caught) return { nearest: 0, at: k, caught: true };
+  const rolled = new Set<number>(); // rooms whose event has been rolled: the start never has one
+  const roomOf = (c: Cell): number => m.rooms.findIndex((r) => sameCell(r, c));
+  rolled.add(roomOf(route[0]!));
+  const near = (k: number, player: Cell): void => {
     const g = distancesFrom(m, player)[indexOf(m, phantom.at)]!;
     if (g < nearest) {
       nearest = g;
       at = k;
+    }
+  };
+  for (let k = 1; k < route.length; k++) {
+    const player = route[k]!;
+    const chasing = k > lastRelicStep;
+    if (sameCell(player, phantom.at)) return { nearest: 0, at: k, caught: true };
+    const turn = phantomTurn(m, phantom, player, { hidden: false, chasing, noise: chasing ? NOISE.run : NOISE.walk });
+    phantom = turn.state;
+    if (turn.caught) return { nearest: 0, at: k, caught: true };
+    near(k, player);
+    if (events && !chasing) {
+      const room = roomOf(player);
+      if (room >= 0 && !rolled.has(room)) {
+        rolled.add(room);
+        const event = rollRoomEvent(m.seed, room);
+        if (event?.effect.kind === 'noise') phantom = phantomHears(m, phantom, player, event.effect.level, true).state;
+      }
+    }
+    if (!chasing && searchSteps.has(k)) {
+      const search = phantomTurn(m, phantom, player, { hidden: false, chasing: false, force: true, noise: NOISE.search });
+      phantom = search.state;
+      if (search.caught) return { nearest: 0, at: k, caught: true };
+      near(k, player);
     }
   }
   return { nearest, at, caught: false };
@@ -129,10 +189,27 @@ export interface PhantomState {
   /** Moves since it last heard you while hunting. */
   quiet: number;
   rng: number;
+  /** The loudest recent noise it heard and is going to look at. `age` counts the turns since. */
+  heard: { at: Cell; level: number; age: number } | null;
 }
 
-/** It hears you within this many rooms, along the passages. */
+/**
+ * How loud each thing you do is. The phantom hears a noise of level `n` within `hearRadius(n)` rooms and hunts you;
+ * a little farther (`INVESTIGATE_EXTRA` more rooms) it only hears something, and goes to look. Listening and
+ * hiding make no noise.
+ */
+export const NOISE = { listen: 0, hide: 0, walk: 1, run: 2, search: 3 } as const;
+/** It hears you within this many rooms, along the passages, when you walk (noise 1). */
 export const PHANTOM_NOTICE = 3;
+/** The rooms within which it hears a noise of this level, and hunts. Walking (1) is 3, as always. Silence is 1: only beside you. */
+export const hearRadius = (level: number): number => (level <= 0 ? 1 : PHANTOM_NOTICE - 1 + level);
+/** Past `hearRadius`, up to this many rooms more, it hears a noise and goes to see, without hunting you yet. */
+export const INVESTIGATE_EXTRA = 2;
+/** It forgets a noise after this many turns. */
+export const NOISE_MEMORY = 5;
+/** What the player is told about a level: quiet (0 to 1), loud (2), very loud (3). */
+export type NoiseBand = 'quiet' | 'loud' | 'very loud';
+export const noiseBand = (level: number): NoiseBand => (level >= 3 ? 'very loud' : level >= 2 ? 'loud' : 'quiet');
 /** It loses your trail after this many moves without hearing you. */
 export const PHANTOM_LOSE_AFTER = 4;
 
@@ -143,10 +220,39 @@ const prowls = (m: PhantomMaze): boolean => m.relics.length > 0 && m.rooms.lengt
 export function phantomStart(m: PhantomMaze): PhantomState {
   const rng = nextRng((m.seed ^ 0x9e3779b9) >>> 0);
   const target = prowls(m) ? m.rooms[rng % m.rooms.length]! : m.ghost;
-  return { at: m.ghost, mode: prowls(m) ? 'prowl' : 'hunt', target, acc: 0, quiet: 0, rng };
+  return { at: m.ghost, mode: prowls(m) ? 'prowl' : 'hunt', target, acc: 0, quiet: 0, rng, heard: null };
 }
 
-export type PhantomNews = 'hunts' | 'lost' | 'searched';
+export type PhantomNews = 'hunts' | 'lost' | 'searched' | 'heard';
+
+/**
+ * A noise of `level` made at `player`. If the phantom is in earshot it remembers the place, when the noise is at
+ * least as loud as what it remembers (so it follows the loudest recent noise). `now` makes it hunt on the spot
+ * if the noise is within `hearRadius`. A plain maze's phantom already knows where you are.
+ */
+export function phantomHears(
+  m: PhantomMaze,
+  state: PhantomState,
+  player: Cell,
+  level: number,
+  now = false,
+): { state: PhantomState; news: PhantomNews[] } {
+  const s: PhantomState = { ...state };
+  const news: PhantomNews[] = [];
+  if (level <= 0 || !prowls(m)) return { state: s, news };
+  const d = distancesFrom(m, s.at)[indexOf(m, player)]!;
+  if (d < 0 || d > hearRadius(level) + INVESTIGATE_EXTRA) return { state: s, news };
+  if (!s.heard || level >= s.heard.level - s.heard.age) {
+    if (!s.heard && level >= 2 && d > hearRadius(level) && s.mode === 'prowl') news.push('heard');
+    s.heard = { at: player, level, age: 0 };
+  }
+  if (now && s.mode === 'prowl' && d <= hearRadius(level)) {
+    s.mode = 'hunt';
+    s.quiet = 0;
+    news.push('hunts');
+  }
+  return { state: s, news };
+}
 
 /**
  * One step of the player's worth of time. Returns the phantom's new state, whether it caught the player,
@@ -157,10 +263,13 @@ export function phantomTurn(
   m: PhantomMaze,
   state: PhantomState,
   player: Cell,
-  how: { hidden: boolean; chasing: boolean; force?: boolean },
+  how: { hidden: boolean; chasing: boolean; force?: boolean; noise?: number },
 ): { state: PhantomState; caught: boolean; news: PhantomNews[] } {
-  const s: PhantomState = { ...state };
-  const news: PhantomNews[] = [];
+  // The noise you make this turn: walking unless said otherwise, none while hidden. The phantom remembers it.
+  const level = how.hidden ? NOISE.hide : (how.noise ?? NOISE.walk);
+  const heard = phantomHears(m, state, player, level);
+  const s: PhantomState = heard.state;
+  const news: PhantomNews[] = [...heard.news];
   const rate = how.chasing ? m.chase : { moves: 1, per: m.ghostEvery };
   let moves = 0;
   if (how.force) moves = 1;
@@ -180,7 +289,7 @@ export function phantomTurn(
   for (let i = 0; i < moves; i++) {
     if (prowls(m)) {
       const d = distancesFrom(m, s.at)[indexOf(m, player)]!;
-      if (how.chasing || (!how.hidden && d >= 0 && d <= PHANTOM_NOTICE)) {
+      if (how.chasing || (!how.hidden && d >= 0 && d <= hearRadius(level))) {
         if (s.mode !== 'hunt') news.push('hunts');
         s.mode = 'hunt';
         s.quiet = 0;
@@ -194,7 +303,8 @@ export function phantomTurn(
       }
     }
     // Hunting, it goes for you (or for where you hid). Prowling, it goes to the room it chose.
-    const goal = s.mode === 'hunt' ? player : s.target;
+    // Prowling, it goes to the loudest noise it remembers, or else to the room it chose.
+    const goal = s.mode === 'hunt' ? player : (s.heard?.at ?? s.target);
     const next = stepToward(m, s.at, goal);
     if (next) s.at = next;
     if (sameCell(s.at, player)) {
@@ -203,9 +313,15 @@ export function phantomTurn(
       news.push('searched');
       s.mode = 'prowl';
       s.quiet = 0;
+      s.heard = null;
+      newTarget();
+    } else if (s.mode === 'prowl' && s.heard && sameCell(s.at, s.heard.at)) {
+      // It got to where the noise was, and finds nothing.
+      s.heard = null;
       newTarget();
     } else if (s.mode === 'prowl' && sameCell(s.at, s.target)) newTarget();
   }
+  if (s.heard) s.heard = s.heard.age + 1 >= NOISE_MEMORY ? null : { ...s.heard, age: s.heard.age + 1 };
   return { state: s, caught: false, news };
 }
 
@@ -302,7 +418,7 @@ export function generateMaze(seed: number, options: MazeOptions = {}): Maze {
   if (o.width < 4 || o.height < 4) throw new Error('A house needs to be at least 4 by 4 rooms.');
 
   // A ritual house has more to fit, so it may take more tries to find a fair one.
-  const attempts = o.relics > 0 ? 160 : 40;
+  const attempts = o.relics > 0 ? 400 : 40;
   for (let attempt = 0; attempt < attempts; attempt++) {
     const rand = mulberry32((seed + attempt * 7919) >>> 0);
     const { width: w, height: h } = o;
@@ -361,6 +477,12 @@ export function generateMaze(seed: number, options: MazeOptions = {}): Maze {
     const ritual = o.relics > 0 ? planRitual(base, start, exit, o, rand) : null;
     if (o.relics > 0 && !ritual) continue;
     const ritualRoute = ritual?.route ?? route;
+    if (
+      o.fit &&
+      !o.fit({ seed, width: w, height: h, open, start, exit, rooms: ritual?.rooms ?? [], relics: ritual?.relics ?? [], hides: ritual?.hides ?? [], ritualRoute })
+    ) {
+      continue;
+    }
     const onRitual = new Set(ritualRoute.map((c) => indexOf(base, c)));
 
     // The phantom goes where it is slowest to reach any step of the route, and far from the start.
@@ -416,7 +538,7 @@ function planRitual(
   base: Pick<Maze, 'width' | 'height' | 'open'>,
   start: Cell,
   exit: Cell,
-  o: Required<MazeOptions>,
+  o: Required<Omit<MazeOptions, 'fit'>>,
   rand: () => number,
 ): { rooms: Cell[]; relics: Cell[]; hides: Cell[]; route: Cell[] } | null {
   const { width: w, height: h } = base;

@@ -52,7 +52,7 @@ Not promised: the short reason and the attempt number are said while play resume
 
 3.1 WHEN a part of the song changes the move, THE SYSTEM SHALL announce the portal in sound, picture and words before it matters (property 16). This already holds for stages 2 to 7.
 
-3.2 A seen portal gate (a gate drawn on the way, so the change is visible before it is heard) is later work.
+3.2 WHERE a part of the song changes the move (stages 2 to 7), THE SYSTEM SHALL draw a gate on the way, arriving with the portal and labelled in words with the new mode ("Flip mode"), with a mark that differs by mode. It SHALL not flash, and with reduced motion it only scrolls with the level.
 
 ## Requirement 4: The picture dances
 
@@ -91,6 +91,10 @@ Not promised: the short reason and the attempt number are said while play resume
 5.7 THE SYSTEM SHALL keep the boss's health, the hit count and the item reward working. The number of hits needed is 70% of the throws in the song.
 
 5.8 THE SYSTEM SHALL say how to read the pattern in the boss's introduction.
+
+5.9 EVERY other boss SHALL have a pattern of its own (its own throw kinds, sounds, tells and volleys), under 5.2 to 5.6. Timing is not harder for later bosses: only the fight may be longer. Bone Warden and Moss Witch have two kinds; the others three (lobbed, rolled and swooped).
+
+5.10 THE SYSTEM SHALL pulse every obstacle softly on the beat, the same for targets and duds, give each stage its own pulse colour and wash, and show each stage's best run and its boss's best on the map, in the stage list and in the one-switch menu, in words.
 
 ## Requirement 6: Proofs first
 

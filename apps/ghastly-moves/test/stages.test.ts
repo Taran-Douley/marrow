@@ -155,13 +155,14 @@ describe('the boss fight', () => {
       const stoneKit = createGhastlyKit(stage);
       expect(JSON.stringify(stoneKit.registry.get('stone')!.sound)).not.toBe(JSON.stringify(def.sound));
     }
-    expect(sounds.size).toBe(1); // one boss sound for the whole game (bar the Pumpkin King, who has two), so a player learns it once
+    // Every boss now has a pattern, so the old single boss sound is gone: each kind has its own.
+    expect(sounds.size).toBe(0);
   });
 
   it('the boss prompt says what to jump and what to let fly through, in words', () => {
     const kit = createGhastlyKit(STAGES[6]!, { boss: true });
     expect(kit.lesson!.prompt).toBe(
-      'Jump over every bat with a prime number. The others are duds: let them fly through you. Every right move hurts Count Vexar.',
+      'Jump over every throw with a prime number. The others are duds: let them fly through you. Before each volley you hear what is coming. A rising sound means blood orbs. A low rumble means rolling coffins. A falling whistle means bats. Every right move hurts Count Vexar.',
     );
   });
 
@@ -189,8 +190,9 @@ describe('the boss fight', () => {
         .flatMap((e) => kit.render(e))
         .filter((c) => c.channel === 'sound' || c.channel === 'haptics')
         .map((c) => JSON.stringify({ ...c, at: 0 }));
+    // Within one kind of throw: a target and a dud look and sound the same.
     const target = level.obstacles.find((o) => o.solid !== false)!;
-    const dud = level.obstacles.find((o) => o.solid === false)!;
+    const dud = level.obstacles.find((o) => o.solid === false && o.kind === target.kind)!;
     expect(strip(target)).toEqual(strip(dud));
   });
 });

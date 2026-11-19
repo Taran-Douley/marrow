@@ -1,4 +1,4 @@
-import { generateMaze, proveMaze, runLengthWords, type Maze } from '@marrow/skeleton';
+import { generateMaze, proveMaze, proveRunLength, runLengthWords, type HouseLayout, type Maze } from '@marrow/skeleton';
 
 // The run loop, kept apart from the page so it can be tested without a screen: which house a run
 // gets, how a run ends, and what is said about it. See .kiro/specs/seance-runs.
@@ -17,8 +17,11 @@ export const STANDARD_SIZE: Size = 'medium';
 export const RELIC_COUNT = 3;
 /** Catches that end a run, when "Catches end a run" is on. */
 export const CATCH_LIMIT = 3;
-/** The most seeds tried for one run before giving up. A house passes about one try in six at the standard size. */
+/** The most seeds tried for one run before giving up. At the standard size nearly every seed is served. */
 export const MAX_SEED_TRIES = 400;
+
+/** The generator's test of a layout: a clean run takes 5 to 8 minutes at every speed and dwell (property 207). */
+const fitsRunLength = (house: HouseLayout): boolean => proveRunLength(house, '').pass;
 
 export interface Skipped {
   seed: number;
@@ -47,7 +50,9 @@ export function serveHouse(firstSeed: number, size: Size, onSkip: (skip: Skipped
   for (let seed = firstSeed; seed < firstSeed + MAX_SEED_TRIES; seed++) {
     let maze: Maze;
     try {
-      maze = generateMaze(seed, { width, height, relics: RELIC_COUNT });
+      // At the standard size the generator lays the house out again until its clean run fits 5 to 8 minutes
+      // for every profile, so nearly every seed is served. The proof below still judges the finished house.
+      maze = generateMaze(seed, { width, height, relics: RELIC_COUNT, ...(lengthProven ? { fit: fitsRunLength } : {}) });
     } catch (error) {
       const skip = { seed, reason: error instanceof Error ? error.message : 'It could not be built fairly.' };
       skipped.push(skip);
