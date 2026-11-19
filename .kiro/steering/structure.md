@@ -44,5 +44,5 @@ Conventions:
 - An object is one file in `apps/<game>/src/objects/` with `export default preset(...)`. `scripts/wire-objects.mjs` (run by the wire-new-object hook) writes `objects/index.generated.ts`, `test/objects.generated.test.ts` and `docs/objects-<game>.md`, then runs the proof.
 - `examples/hello/` is the smallest game: one `createGame` call. `skeleton/src/catalogue/` holds the ready-made objects; `docs/catalogue.md` is made from it.
 - `npm run setup` (`scripts/setup.mjs`) goes from a fresh clone to both games open.
-- Each game may have a `brief.md` and an `accessibility-plan.md` beside it. `npm run advise` (`scripts/advise.mjs`, the bundled advisor in `power/marrow/mcp/advisor.js`) makes and builds plans; `skeleton/src/advisor/` is the advisor itself, exported as `@marrow/skeleton/advisor`. Spec: `.kiro/specs/marrow-advisor/`.
+- Each game may have a `brief.md` and an `accessibility-plan.md` beside it. `npm run advise` (`scripts/advise.mjs`, the bundled advisor in `power/marrow/mcp/advisor.mjs`) makes and builds plans; `skeleton/src/advisor/` is the advisor itself, exported as `@marrow/skeleton/advisor`. Spec: `.kiro/specs/marrow-advisor/`.
 - A separate public repository will hold the Kiro Crew app (overnight Level Forge) for the Best Kiro Crew App bonus, under the same GitHub account.

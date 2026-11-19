@@ -200,3 +200,28 @@ describe('the quality report', () => {
     expect(r.markdown).toMatch(/not whether it is fun/);
   });
 });
+
+describe('ESA tags', () => {
+  const all = suggestionsFor(parseBrief('Name: X\nGenre: shooter\nFeatures:\n- a boss\n- a timer\n- dialogue\n- coins\n- chat\n- checkpoints\n- a story'))
+    .concat(suggestionsFor(parseBrief('Name: Y\nGenre: rhythm\nFeatures:\n- lessons\n- music')))
+    .concat(suggestionsFor(parseBrief('Name: Z\nGenre: racing')));
+
+  it('every suggestion lists its ESA tags, and every tag is one of the 24', async () => {
+    const { ESA_TAGS } = await import('../src/report');
+    for (const s of all) {
+      expect(Array.isArray(s.esa), s.id).toBe(true);
+      for (const t of s.esa) expect(ESA_TAGS as readonly string[], `${s.id}: ${t}`).toContain(t);
+    }
+  });
+
+  it('tags the ones that match, and says plainly when no tag covers an idea', () => {
+    const tags = (id: string) => all.find((s) => s.id === id)!.esa;
+    expect(tags('no-holds')).toEqual(['Playable without Button Holds', 'Playable without Rapid Button Presses']);
+    expect(tags('mono')).toEqual(['Mono Sound']);
+    expect(tags('multiplayer-chat')).toEqual(['Chat Speech-to-Text & Text-to-Speech']);
+    expect(tags('coach')).toEqual([]);
+    const md = planMarkdown(advise(parseBrief('Name: Y\nGenre: rhythm')));
+    expect(md).toMatch(/`mono` [\s\S]*?- ESA tag: Mono Sound\./);
+    expect(md).toMatch(/`coach` [\s\S]*?- ESA tag: none \(no ESA tag covers this yet\)\./);
+  });
+});

@@ -42,10 +42,10 @@ mkdirSync(target, { recursive: true });
 cpSync(starter, target, { recursive: true });
 cpSync(runtime, join(target, 'marrow'), { recursive: true });
 // The accessibility advisor: npm run advise -- advise brief.md
-const advisor = join(power, 'mcp', 'advisor.js');
+const advisor = join(power, 'mcp', 'advisor.mjs');
 if (existsSync(advisor)) {
   mkdirSync(join(target, 'tools'), { recursive: true });
-  cpSync(advisor, join(target, 'tools', 'advisor.js'));
+  cpSync(advisor, join(target, 'tools', 'advisor.mjs'));
 }
 
 if (kiro) {

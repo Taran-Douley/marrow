@@ -85,9 +85,9 @@ Guides are in the power's \`skills/build-an-accessible-game/references/\`. Licen
 
 // ---- the MCP server -----------------------------------------------------------------------------
 cpSync(bundle, fresh(join('mcp', 'level-forge.js')));
-// The advisor's command line: describe the game, get a plan, build it (node mcp/advisor.js).
+// The advisor's command line: describe the game, get a plan, build it (node mcp/advisor.mjs).
 const advisorBundle = join(root, 'mcp', 'level-forge', 'dist', 'advisor.js');
-if (existsSync(advisorBundle)) cpSync(advisorBundle, fresh(join('mcp', 'advisor.js')));
+if (existsSync(advisorBundle)) cpSync(advisorBundle, fresh(join('mcp', 'advisor.mjs')));
 
 // ---- references ---------------------------------------------------------------------------------
 const references = fresh(join('skills', 'build-an-accessible-game', 'references'));

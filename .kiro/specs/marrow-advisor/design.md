@@ -27,7 +27,7 @@ All of it is pure TypeScript in `skeleton/src/advisor/`, with no DOM and no engi
 
 | Piece | Where |
 |---|---|
-| CLI | `scripts/advise.mjs` runs the bundled advisor (`power/marrow/mcp/advisor.js`): `advise <brief>` writes the plan next to it, merging decisions; `build <brief>` writes `accessibility.generated.ts`; `quality <game>` prints the report. |
+| CLI | `scripts/advise.mjs` runs the bundled advisor (`power/marrow/mcp/advisor.mjs`): `advise <brief>` writes the plan next to it, merging decisions; `build <brief>` writes `accessibility.generated.ts`; `quality <game>` prints the report. |
 | MCP tools | `advise_game`, `sound_palette` and `quality_report` in Level Forge, for any engine. |
 | Agent | `.kiro/agents/accessibility-designer.md`: talks the plan through, suggests themed alternatives, edits only what is agreed, then runs `build` and `quality`. |
 | Hook | `.kiro/hooks/advise-on-brief.json`: when a `brief.md` is saved, run `advise` so the plan follows the game. |

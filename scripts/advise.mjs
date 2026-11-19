@@ -7,7 +7,7 @@
 //   npm run advise -- palette <theme>             show a theme's sounds
 //   npm run advise -- advise-all                  update every plan in apps/ and examples/ (what the Kiro hook runs)
 //
-// It runs the advisor bundled in the Kiro power (power/marrow/mcp/advisor.js), which needs nothing installed.
+// It runs the advisor bundled in the Kiro power (power/marrow/mcp/advisor.mjs), which needs nothing installed.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const cli = [join(root, 'power', 'marrow', 'mcp', 'advisor.js'), join(root, 'mcp', 'level-forge', 'dist', 'advisor.js')].find(existsSync);
+const cli = [join(root, 'power', 'marrow', 'mcp', 'advisor.mjs'), join(root, 'mcp', 'level-forge', 'dist', 'advisor.js')].find(existsSync);
 if (!cli) {
   console.error('The advisor is not built yet. Run:  npm run build --workspace mcp/level-forge  then  node scripts/build-power.mjs');
   process.exit(1);

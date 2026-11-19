@@ -494,6 +494,12 @@ var RULES = [
 		why: "Some players use a single button, a head switch or a sip-and-puff switch. If one press can do everything, they can play the whole game.",
 		helps: "one-switch players, and anyone playing with one hand",
 		guideline: "Game Accessibility Guidelines (motor): make the game playable with a single button; Xbox Accessibility Guidelines: Input",
+		esa: [
+			"Playable with Buttons Only",
+			"Playable with Keyboard Only",
+			"Playable with Mouse Only",
+			"Playable with Touch Only"
+		],
 		how: (c) => builtOr(c, "Any key, click, tap or gamepad button is the switch, and menus are scanned (createGame, createMenuStack).", "Offer a one-button mode: scan through actions, and let one press choose the lit one.")
 	},
 	{
@@ -504,6 +510,7 @@ var RULES = [
 		why: "Holding and mashing are hard or painful for many players, and they shut out switch users entirely.",
 		helps: "players who tire quickly, and one-switch players",
 		guideline: "Game Accessibility Guidelines (motor): avoid repeated inputs and holds; Xbox Accessibility Guidelines: Input",
+		esa: ["Playable without Button Holds", "Playable without Rapid Button Presses"],
 		how: (c) => builtOr(c, "Proof property 10 checks it: one tap is one press, and key repeat adds none.", "Turn every hold into a toggle and every mash into one press.")
 	},
 	{
@@ -514,6 +521,7 @@ var RULES = [
 		why: "Players use what their bodies allow: a different key, a foot pedal, one side of a pad.",
 		helps: "players with their own controllers or layouts",
 		guideline: "Game Accessibility Guidelines (motor, basic): allow controls to be remapped",
+		esa: ["Basic Input Remapping", "Full Input Remapping"],
 		how: () => ({
 			kind: "by-hand",
 			detail: "Keep a table of action to input in the player profile, with a screen to change it. (Marrow roadmap: full remapping.)"
@@ -527,6 +535,7 @@ var RULES = [
 		why: "Pressing on an exact beat is hard when your hands are slow to answer. Timing help keeps the choice yours and takes the stopwatch away.",
 		helps: "players who need more time to press",
 		guideline: "Game Accessibility Guidelines (motor): include an option to adjust the game speed or timing",
+		esa: ["Difficulty Levels"],
 		how: (c) => c.marrow ? {
 			kind: "from-plan",
 			builds: "assist",
@@ -544,6 +553,7 @@ var RULES = [
 		why: "Fine aiming needs steady hands and sharp eyes. Lock-on keeps the action and drops the precision.",
 		helps: "players who aim slowly, and players who play by sound",
 		guideline: "Xbox Accessibility Guidelines: Input (assist options)",
+		esa: ["Difficulty Levels"],
 		how: () => ({
 			kind: "by-hand",
 			detail: "Snap aim to the nearest target on one press; place its sound in space (Marrow events with spatial: true) and say its direction."
@@ -557,6 +567,7 @@ var RULES = [
 		why: "Holding a line and the throttle at once is two hard things. Help with one leaves the race.",
 		helps: "players who press slowly, and one-switch players",
 		guideline: "Xbox Accessibility Guidelines: Input (assist options)",
+		esa: ["Difficulty Levels"],
 		how: () => ({
 			kind: "by-hand",
 			detail: "Offer auto-accelerate and steering assist; say turns before they come, as a countdown."
@@ -570,6 +581,7 @@ var RULES = [
 		why: "A cue you can hear coming lets players time a move by ear. Making the cues part of the world keeps the mood instead of breaking it.",
 		helps: "players who play by sound, and everyone in a busy moment",
 		guideline: "Xbox Accessibility Guidelines: Audio accessibility; Game Accessibility Guidelines (vision): use distinct sound for each important thing",
+		esa: [],
 		how: (c) => c.marrow ? {
 			kind: "from-plan",
 			builds: "palette",
@@ -587,6 +599,7 @@ var RULES = [
 		why: "Every action should be heard, and heard as part of the game. Random beeps tire the ear; sounds from the world tell a story.",
 		helps: "players who play by sound, and anyone who likes a game that sounds alive",
 		guideline: "Game Accessibility Guidelines (vision): ensure all key actions have a sound",
+		esa: [],
 		how: (c) => c.marrow ? {
 			kind: "from-plan",
 			builds: "palette",
@@ -609,6 +622,7 @@ var RULES = [
 		why: "Direction and distance by ear let a player find the way, and the danger, without seeing.",
 		helps: "players who play by sound",
 		guideline: "Xbox Accessibility Guidelines: Audio accessibility (spatial audio)",
+		esa: ["Stereo Sound", "Surround Sound"],
 		how: (c) => builtOr(c, "Events with spatial: true are placed in 3D on headphones and panned in mono-safe stereo; nearest() keeps only the closest few.", "Use your engine’s 3D audio for every important thing, and a mono option.")
 	},
 	{
@@ -619,6 +633,7 @@ var RULES = [
 		why: "Music sets the mood, but a cue lost under it is a cue missed.",
 		helps: "players who play by sound, and players who hear less in some pitches",
 		guideline: "Game Accessibility Guidelines (hearing): separate volume for music, speech and effects",
+		esa: ["Multiple Volume Controls"],
 		how: (c) => builtOr(c, "Tracks duck under cues and stay below them (proofs 13 and 14); the music volume is a setting.", "Duck the music under every cue, and keep separate volumes for music, speech and effects.")
 	},
 	{
@@ -629,6 +644,7 @@ var RULES = [
 		why: "Players who hear with one ear, or with one earbud, miss half of a stereo mix.",
 		helps: "players who hear with one ear",
 		guideline: "Game Accessibility Guidelines (hearing): provide a stereo/mono toggle",
+		esa: ["Mono Sound"],
 		how: (c) => builtOr(c, "Sound: Mono, in the settings menu.", "Add a mono toggle that mixes left and right.")
 	},
 	{
@@ -639,6 +655,7 @@ var RULES = [
 		why: "Screen-reader and braille users get every line; players who use their own reader avoid hearing it twice.",
 		helps: "players who play by sound, and screen-reader and braille users",
 		guideline: "Xbox Accessibility Guidelines: Screen narration; Game Accessibility Guidelines (vision): screen reader support",
+		esa: ["Narrated Menus"],
 		how: (c) => builtOr(c, "Every spoken line goes to an aria-live region; Voice is a setting.", "Write every spoken line to the platform’s screen reader API, and offer a voice-off setting.")
 	},
 	{
@@ -649,6 +666,7 @@ var RULES = [
 		why: "If a sound tells you something, a caption must tell you the same thing.",
 		helps: "players who play by sight, and anyone playing with the sound off",
 		guideline: "Xbox Accessibility Guidelines: Subtitles and captions; Game Accessibility Guidelines (hearing): subtitles for all important sounds",
+		esa: ["Large & Clear Subtitles"],
 		how: (c) => builtOr(c, "Every event reaches at least two senses (proof 8); captions wrap rather than shrink.", "Caption every meaningful sound with what it is and where it is.")
 	},
 	{
@@ -664,6 +682,7 @@ var RULES = [
 		why: "A busy game can say too much. Letting players choose keeps it clear for those who need less, and rich for those who want more.",
 		helps: "players who want fewer words, and players who want every detail",
 		guideline: "Game Accessibility Guidelines (cognitive): allow players to reduce distractions",
+		esa: [],
 		how: (c) => c.marrow ? {
 			kind: "from-plan",
 			builds: "announce",
@@ -681,6 +700,7 @@ var RULES = [
 		why: "A player who plays by sight still needs to know a sound happened, and roughly when.",
 		helps: "players who play by sight",
 		guideline: "Xbox Accessibility Guidelines: Additional channels for visual and audio cues",
+		esa: [],
 		how: (c) => builtOr(c, "The sound marker in the caption box lights for every cue; it holds steady with reduced motion.", "Show an on-screen indicator for each important sound, with its direction.")
 	},
 	{
@@ -691,6 +711,11 @@ var RULES = [
 		why: "Low contrast and small text lock out many players; meaning carried by colour alone locks out more.",
 		helps: "players who see less, and players who see colour differently",
 		guideline: "WCAG 2.2 AA contrast; Xbox Accessibility Guidelines: Text display, Contrast",
+		esa: [
+			"Clear Text",
+			"Large Text",
+			"Color Alternatives"
+		],
 		how: (c) => builtOr(c, "Contrast, Text size and Colours are settings, and proof 9 checks every theme.", "Meet 4.5:1 for text and 3:1 for graphics; add shapes or words wherever colour carries meaning.")
 	},
 	{
@@ -701,6 +726,7 @@ var RULES = [
 		why: "Motion can make players sick, and flashing can cause seizures.",
 		helps: "players sensitive to motion or light",
 		guideline: "WCAG 2.3.1 three flashes; Game Accessibility Guidelines (general): avoid flickering images",
+		esa: ["Camera Comfort"],
 		how: (c) => builtOr(c, "Motion is a setting (it follows the OS); proof 7 checks flashing at every speed.", "Cap flashes at three per second and add a reduced-motion setting.")
 	},
 	{
@@ -711,6 +737,7 @@ var RULES = [
 		why: "If it can be finished by sound alone, players who cannot see can finish it, and sighted testers can check it.",
 		helps: "players who play by sound",
 		guideline: "Game Accessibility Guidelines (vision): ensure the game is playable without sight",
+		esa: ["Narrated Menus"],
 		how: (c) => builtOr(c, "Picture: Off, in the settings; the audio-only bot checks levels can be cleared by sound.", "Test with the screen off; every needed fact must also be heard.")
 	},
 	{
@@ -721,6 +748,7 @@ var RULES = [
 		why: "Losing progress is the fastest way to lose a player. Knowing why turns a mistake into learning.",
 		helps: "everyone, and players who need more tries",
 		guideline: "Game Accessibility Guidelines (cognitive): avoid punishing mistakes; give clear feedback",
+		esa: [],
 		how: (c) => builtOr(c, "Falls say why (\"Pressed a little early\"), wait until it is heard, and retry just before the obstacle. No lives, no game over.", "Checkpoint often, explain failures in plain words, and never take away more than a few seconds.")
 	},
 	{
@@ -731,6 +759,7 @@ var RULES = [
 		why: "Speed changes how hard it is without changing what it is.",
 		helps: "players who need more time",
 		guideline: "Game Accessibility Guidelines (motor, cognitive): allow the game speed to be changed",
+		esa: ["Difficulty Levels"],
 		how: (c) => builtOr(c, "Game speed is a setting; Slow is the default, and the proof checks the timing window at every speed.", "Add a speed setting that slows the whole game, not just the player.")
 	},
 	{
@@ -741,6 +770,7 @@ var RULES = [
 		why: "A heads-up gives time to think and get ready, without changing the cues.",
 		helps: "players who need more warning, and players new to the game",
 		guideline: "Game Accessibility Guidelines (cognitive): give advance warning of events",
+		esa: [],
 		how: (c) => c.marrow ? {
 			kind: "from-plan",
 			builds: "coach",
@@ -758,6 +788,7 @@ var RULES = [
 		why: "A level that cannot be finished with one switch, or by sound, excludes someone without anyone noticing.",
 		helps: "everyone",
 		guideline: "Marrow proof properties; Game Accessibility Guidelines (general): test with the players you want to include",
+		esa: ["Playable with Buttons Only"],
 		how: (c) => c.marrow ? {
 			kind: "built-in",
 			detail: "The proof runs before every level, and a failing level is refused with the reason. Bot players report how it plays."
@@ -774,6 +805,7 @@ var RULES = [
 		why: "Long stretches between saves turn one hard jump into a wall.",
 		helps: "players who need more tries",
 		guideline: "Game Accessibility Guidelines (cognitive): save progress often",
+		esa: ["Save Anytime"],
 		how: () => ({
 			kind: "by-hand",
 			detail: "Add a checkpoint before every hard section, and a practice mode that repeats it."
@@ -787,6 +819,7 @@ var RULES = [
 		why: "Good settings help only if players find them. Asking once, at the start, in ways of playing, gets them on.",
 		helps: "everyone, first of all new players",
 		guideline: "Game Accessibility Guidelines (general): offer settings before the game starts",
+		esa: ["Narrated Menus"],
 		how: (c) => builtOr(c, "Just play, Play by sound, Play by sight, More time, More settings: the first time only.", "Show a short setup before play: ways of playing, not conditions, each changing a group of settings.")
 	},
 	{
@@ -802,6 +835,7 @@ var RULES = [
 		why: "Players who play by ear learn the sounds faster when they can hear each one on its own, named.",
 		helps: "players who play by sound",
 		guideline: "Game Accessibility Guidelines (vision): provide a sound test or glossary",
+		esa: ["Narrated Menus"],
 		how: () => ({
 			kind: "by-hand",
 			detail: "A scanned menu where each entry names a sound and plays it (Séance Escape’s guide.ts is an example)."
@@ -815,6 +849,7 @@ var RULES = [
 		why: "In speech and text, who is talking is half the meaning.",
 		helps: "players who play by sight, and players who play by sound",
 		guideline: "Xbox Accessibility Guidelines: Subtitles and captions (speaker identification)",
+		esa: ["Large & Clear Subtitles"],
 		how: (c) => builtOr(c, "Put the name in the caption, and give the character a voice with voice: { pitch, rate } on the event (as Mabel has).", "Prefix captions with the speaker, and use a distinct voice or colour plus name.")
 	},
 	{
@@ -825,6 +860,7 @@ var RULES = [
 		why: "A missed line is a missed clue. Text that moves on by itself leaves slow readers behind.",
 		helps: "players who read or listen slowly",
 		guideline: "Game Accessibility Guidelines (cognitive): allow text and speech to be replayed; no timed text",
+		esa: [],
 		how: () => ({
 			kind: "by-hand",
 			detail: "Keep a log of recent lines the player can scan, and advance story only on a press."
@@ -838,6 +874,7 @@ var RULES = [
 		why: "Boss fights are the peak of a game. A warning by sound and sight lets every player read the fight.",
 		helps: "players who play by sound, by sight, or need more warning",
 		guideline: "Xbox Accessibility Guidelines: Additional channels for visual and audio cues",
+		esa: [],
 		how: (c) => c.marrow ? {
 			kind: "by-hand",
 			detail: `Emit an event before each attack with the palette's danger sound (${c.palette.sounds.danger.words}), a caption and a buzz; keep it a clear beat before the countdown, as Ghastly Moves' boss throw does.`
@@ -854,6 +891,7 @@ var RULES = [
 		why: "A clock is pressure some players cannot work under. Content should not be locked behind speed.",
 		helps: "players who need more time",
 		guideline: "Game Accessibility Guidelines (cognitive): avoid time limits, or allow them to be adjusted",
+		esa: ["Difficulty Levels"],
 		how: () => ({
 			kind: "by-hand",
 			detail: "Read the time limit from a setting (normal, longer, off), and say the time left at set points."
@@ -867,6 +905,7 @@ var RULES = [
 		why: "Collectibles reward exploring. Placing them by sound lets players who cannot see go looking too.",
 		helps: "players who play by sound",
 		guideline: "Xbox Accessibility Guidelines: Audio accessibility",
+		esa: ["Stereo Sound"],
 		how: (c) => builtOr(c, "A spatial event per pickup with the reward sound; nearest(items, 3, distance) keeps it clear.", "Give each pickup a placed sound, and only sound the nearest few.")
 	},
 	{
@@ -877,6 +916,7 @@ var RULES = [
 		why: "Being stuck ends more games than being hurt. A hint keeps players moving at their own pace.",
 		helps: "players who need more help, and players who play by sound",
 		guideline: "Game Accessibility Guidelines (cognitive): offer hints",
+		esa: ["Difficulty Levels"],
 		how: (c) => builtOr(c, "Ask for a hint is a choice at every stop, and one is given free after two catches (walk settings).", "Add a hint button with escalating hints, and offer one after repeated failure.")
 	},
 	{
@@ -887,6 +927,7 @@ var RULES = [
 		why: "An explanation turns a mistake into learning; waiting for it means nobody misses it.",
 		helps: "learners, and players who think at their own pace",
 		guideline: "Game Accessibility Guidelines (cognitive): explain mistakes",
+		esa: [],
 		how: (c) => builtOr(c, "A lesson in the kit (explainWrong, explainMiss); the run waits until the explanation is said.", "Show and say why an answer was wrong, and wait for a press before going on.")
 	},
 	{
@@ -897,6 +938,7 @@ var RULES = [
 		why: "Talking with others is part of the game. Every player should get to join in.",
 		helps: "players who play by sound, and players who play by sight",
 		guideline: "Xbox Accessibility Guidelines: Communication experiences",
+		esa: ["Chat Speech-to-Text & Text-to-Speech"],
 		how: () => ({
 			kind: "by-hand",
 			detail: "Speak incoming text chat, caption incoming voice chat, and offer quick phrases one press can send."
@@ -923,6 +965,7 @@ function suggestionsFor(brief) {
 		why: r.why,
 		helps: r.helps,
 		guideline: r.guideline,
+		esa: r.esa,
 		how: r.how(c)
 	})));
 }
@@ -993,6 +1036,7 @@ function planMarkdown(plan) {
 			lines.push(`  - Helps: ${i.helps}.`);
 			lines.push(`  - How: ${HOW_WORDS[i.how.kind]}. ${i.how.detail}`);
 			lines.push(`  - Guideline: ${i.guideline}.`);
+			lines.push(`  - ESA tag: ${i.esa.length > 0 ? i.esa.join(", ") : "none (no ESA tag covers this yet)"}.`);
 			lines.push(`  - Note: ${i.note}`);
 		}
 		lines.push("");
@@ -1036,6 +1080,7 @@ function parsePlan(markdown, brief) {
 			why: "",
 			helps: "",
 			guideline: "",
+			esa: [],
 			how: {
 				kind: "by-hand",
 				detail: ""

@@ -24,4 +24,4 @@ jobs:
       - run: node scripts/setup.mjs --no-start
       # The power is rebuilt by the tests; fail if the committed copy is out of date. The bundled MCP
       # server is left out: the bundler orders modules differently on Linux and Windows, same code.
-      - run: git diff --exit-code -- power/marrow ':!power/marrow/mcp/level-forge.js' ':!power/marrow/mcp/advisor.js'
+      - run: git diff --exit-code -- power/marrow ':!power/marrow/mcp/level-forge.js' ':!power/marrow/mcp/advisor.mjs'

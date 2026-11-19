@@ -16,10 +16,10 @@ import {
 
 // The advisor from the command line. Bundled with the kit into one file, so it runs with plain node.
 //
-//   node advisor.js advise  <brief.md>   make or update accessibility-plan.md next to the brief, keeping decisions
-//   node advisor.js build   <brief.md>   build the accepted plan into src/accessibility.generated.ts
-//   node advisor.js palette <theme>      show a theme's sounds
-//   node advisor.js new     <brief.md>   write a starter brief
+//   node advisor.mjs advise  <brief.md>   make or update accessibility-plan.md next to the brief, keeping decisions
+//   node advisor.mjs build   <brief.md>   build the accepted plan into src/accessibility.generated.ts
+//   node advisor.mjs palette <theme>      show a theme's sounds
+//   node advisor.mjs new     <brief.md>   write a starter brief
 
 const [command, target] = process.argv.slice(2);
 const say = (line = ''): void => console.log(line);

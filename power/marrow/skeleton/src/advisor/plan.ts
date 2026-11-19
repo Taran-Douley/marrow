@@ -66,6 +66,7 @@ export function planMarkdown(plan: Plan): string {
       lines.push(`  - Helps: ${i.helps}.`);
       lines.push(`  - How: ${HOW_WORDS[i.how.kind]}. ${i.how.detail}`);
       lines.push(`  - Guideline: ${i.guideline}.`);
+      lines.push(`  - ESA tag: ${i.esa.length > 0 ? i.esa.join(', ') : 'none (no ESA tag covers this yet)'}.`);
       lines.push(`  - Note: ${i.note}`);
     }
     lines.push('');
@@ -103,7 +104,7 @@ export function parsePlan(markdown: string, brief: Brief): Plan {
   for (const [id, d] of decisions) {
     if (items.some((i) => i.id === id) || d.decision === 'undecided') continue;
     const title = new RegExp(`^- \\[[ xX-]\\] \`${id}\` (.*?)(?: \\*\\*.*)?$`, 'm').exec(markdown)?.[1] ?? id;
-    items.push({ id, area: 'features', title, why: '', helps: '', guideline: '', how: { kind: 'by-hand', detail: '' }, ...d, isNew: false, noLongerFits: true });
+    items.push({ id, area: 'features', title, why: '', helps: '', guideline: '', esa: [], how: { kind: 'by-hand', detail: '' }, ...d, isNew: false, noLongerFits: true });
   }
   return { ...known, items };
 }

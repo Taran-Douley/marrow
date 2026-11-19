@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "advise": "node tools/advisor.js"
+    "advise": "node tools/advisor.mjs"
   },
   "dependencies": {
     "@marrow/skeleton": "file:./marrow"

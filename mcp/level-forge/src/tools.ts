@@ -433,7 +433,7 @@ const adviseGameTool: Tool = {
       `${kinds['built-in']} are built into Marrow, ${kinds['from-plan']} Marrow builds from the plan, ${kinds['by-hand']} are for the game's own code.` +
       (plan.items.some((i) => i.isNew) ? ` New: ${plan.items.filter((i) => i.isNew).map((i) => i.id).join(', ')}.` : '') +
       (plan.items.some((i) => i.noLongerFits) ? ` No longer fit (kept): ${plan.items.filter((i) => i.noLongerFits).map((i) => i.id).join(', ')}.` : '');
-    return { text, data: { markdown: planMarkdown(plan), items: plan.items.map((i) => ({ id: i.id, area: i.area, title: i.title, how: i.how.kind, decision: i.decision, isNew: i.isNew, noLongerFits: i.noLongerFits })) } };
+    return { text, data: { markdown: planMarkdown(plan), items: plan.items.map((i) => ({ id: i.id, area: i.area, title: i.title, esa: i.esa, how: i.how.kind, decision: i.decision, isNew: i.isNew, noLongerFits: i.noLongerFits })) } };
   },
 };
 
