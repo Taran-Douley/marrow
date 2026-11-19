@@ -4,6 +4,7 @@ import type {
   ChannelId,
   EventPresentation,
   OutputCommand,
+  Priority,
   Profile,
   SemanticEvent,
   SpeechMode,
@@ -104,6 +105,16 @@ function plainLine(ctx: Context, event: SemanticEvent): string | undefined {
       return phrase('levelComplete', {}, ctx.strings);
     case EVENT_TYPES.menuOption:
       return dataString(event, 'label');
+    case EVENT_TYPES.coach: {
+      // A heads-up that never gives the answer away: in a lesson every obstacle is "decide".
+      const value = dataNumber(event, 'value');
+      const here = dataNumber(event, 'here');
+      const move = dataString(event, 'move') ?? 'jump';
+      const name = ctx.objects.get(dataString(event, 'object') ?? '')?.caption ?? dataString(event, 'object') ?? 'Something';
+      const what = here !== undefined && value !== undefined ? `${here} or ${value}` : value !== undefined ? String(value) : name;
+      const verb = here !== undefined ? 'choose' : value !== undefined ? 'decide' : move;
+      return phrase('coach', { what, move: verb }, ctx.strings);
+    }
     case EVENT_TYPES.portal: {
       const move = dataString(event, 'move');
       return phrase(move === 'flip' ? 'portalFlip' : move === 'switch' ? 'portalSwitch' : 'portalJump', {}, ctx.strings);
@@ -111,6 +122,14 @@ function plainLine(ctx: Context, event: SemanticEvent): string | undefined {
     default:
       return undefined;
   }
+}
+
+/** Whether words of this priority are said and shown at the player's announce level (Requirement 25.2). */
+function heard(priority: Priority | undefined, profile: Profile): boolean {
+  const p = priority ?? 'important';
+  if (p === 'critical' || p === 'important') return true;
+  if (p === 'information') return profile.announce !== 'minimal';
+  return profile.announce === 'detailed';
 }
 
 /** A gate's two numbers in words: "7 or 12?" spoken, "Stay 7 · Switch 12" shown. Undefined when the event is not a gate. */
@@ -213,7 +232,7 @@ function soundChannel(ctx: Context): Channel {
 function speechChannel(ctx: Context): Channel {
   return {
     id: 'speech',
-    render(event) {
+    render(event, profile) {
       const speak = (text: string, mode?: SpeechMode, tone?: SpeechTone): OutputCommand[] => [
         {
           channel: 'speech',
@@ -226,7 +245,12 @@ function speechChannel(ctx: Context): Channel {
         },
       ];
       const custom = customOf(ctx, event);
-      if (custom) return custom.say === undefined ? [] : speak(fillSlots(custom.say, slotsOf(event)), custom.speech, custom.voice);
+      if (custom) {
+        if (custom.say === undefined || !heard(custom.priority, profile)) return [];
+        // A critical line cuts in, unless the game chose otherwise.
+        const mode = custom.speech ?? (custom.priority === 'critical' ? 'cut-in' : undefined);
+        return speak(fillSlots(custom.say, slotsOf(event)), mode, custom.voice);
+      }
       // A scanning label never makes the voice fall behind the highlight.
       if (event.type === EVENT_TYPES.menuOption) {
         const label = dataString(event, 'label');
@@ -246,6 +270,7 @@ function speechChannel(ctx: Context): Channel {
         return name === undefined ? [] : speak(phrase('approaching', { name }, ctx.strings));
       }
       if (event.type === EVENT_TYPES.judged) {
+        if (!heard('information', profile)) return []; // a grade is extra: not said at minimal
         // Speech stays rare so it never talks over the next countdown: only a perfect, or a streak of five.
         const streak = dataNumber(event, 'streak') ?? 0;
         if (streak > 0 && streak % 5 === 0) return speak(phrase('streak', { streak: String(streak) }, ctx.strings));
@@ -263,14 +288,14 @@ function speechChannel(ctx: Context): Channel {
 function captionsChannel(ctx: Context): Channel {
   return {
     id: 'captions',
-    render(event) {
+    render(event, profile) {
       const show = (text: string, pip?: 1 | 2 | 3 | 4): OutputCommand[] => [
         pip === undefined
           ? { channel: 'captions', senses: ['sight'], at: event.at, text }
           : { channel: 'captions', senses: ['sight'], at: event.at, text, pip },
       ];
       const custom = customOf(ctx, event);
-      if (custom) return custom.caption === undefined ? [] : show(fillSlots(custom.caption, slotsOf(event)));
+      if (custom) return custom.caption === undefined || !heard(custom.priority, profile) ? [] : show(fillSlots(custom.caption, slotsOf(event)));
 
       // In a lesson the caption is the number, and the fourth beat must not say "press now".
       const value = dataNumber(event, 'value');

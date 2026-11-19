@@ -30,6 +30,8 @@ export const PHRASES = {
    * it is said in full before the fourth beat even at Fast (property 104). The caption says "Stay" and "Switch".
    */
   gate: '{here} or {there}?',
+  /** The coach's heads-up before a countdown. {move} is jump, flip, switch, decide or choose. */
+  coach: '{what} coming. Get ready to {move}.',
   /** The caption for a gate, which has room to say which is which. */
   gateCaption: 'Stay {here} · Switch {there}',
 } as const;

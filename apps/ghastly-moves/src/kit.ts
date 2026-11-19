@@ -27,6 +27,8 @@ export function createGhastlyKit(what: number | Stage | Lesson, options: Ghastly
   const song = stage && !boss ? stage.song : undefined;
   const kit = createKit({
     lesson,
+    // The coach says what is coming before each countdown, for players who want more warning. Off until the player picks a lead.
+    coach: true,
     ...(song ? { song: song.song, timing: { beat: song.beat } } : {}),
     ...(track ? { audio: { keyHz: track.rootHz, track } } : {}),
     events: {

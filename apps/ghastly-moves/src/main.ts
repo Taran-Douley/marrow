@@ -314,6 +314,7 @@ function start(what: Kind): void {
     speed: profile.speed,
     picture: profile.picture,
     assist: assistBox.checked,
+    coachLeadMs: profile.coachLeadMs,
     startReal: performance.now(),
     emit,
     onAttempt: (attempt: Attempt) => {

@@ -5,6 +5,7 @@ import {
   applySetup,
   bearingFrom,
   createMenuStack,
+  PROFILE_SETTINGS,
   createScanner,
   profileEntries,
   setupEntries,
@@ -485,6 +486,8 @@ function mainEntries(): MenuEntry[] {
 }
 
 const MAIN_TITLE = 'Séance Escape.';
+/** Every player setting except the coach, which is for timed games. */
+const SEANCE_SETTINGS = PROFILE_SETTINGS.map((s) => s.id).filter((id) => id !== 'coach');
 function openMenus(now: number): void {
   menus.close();
   if (!profile.setupDone) menus.open({ title: 'Welcome. How would you like to play?', entries: setupEntries() }, now);
@@ -508,13 +511,13 @@ function menuPress(now: number): void {
       menus.close();
       openGuide(now);
     } else if (r.id === 'settings') {
-      menus.open({ title: 'Settings', entries: profileEntries(() => profile) }, now);
+      menus.open({ title: 'Settings', entries: profileEntries(() => profile, SEANCE_SETTINGS) }, now);
     } else if (r.id.startsWith('setup:')) {
       const done = applySetup(profile, r.id)!;
       setProfile(done.profile);
       menus.close();
       menus.open({ title: MAIN_TITLE, entries: mainEntries() }, now, undefined, done.says || undefined);
-      if (done.more) menus.open({ title: 'Settings', entries: profileEntries(() => profile) }, now);
+      if (done.more) menus.open({ title: 'Settings', entries: profileEntries(() => profile, SEANCE_SETTINGS) }, now);
     }
     return;
   }

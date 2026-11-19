@@ -15,6 +15,8 @@ export { WINDOW_FLOOR_MS, proofResult } from './timing';
 export { CUE_MARGIN_DB, cuesAudible, trackClearOfCues } from './audio';
 export { eventsReachTwoSenses } from './senses';
 export { lessonProperty } from './lesson';
+export { coachInTime } from './coach';
+export { MAX_FLASHES_PER_SECOND, linesInScript, noHoldOrChord, noUnsafeFlashing, repairsKeepTheLevel, themesHaveContrast } from './presentation';
 export { gateWordsInTime, gatesHaveOneRightLane, portalsGiveWarning, restsAreRests, songProperties } from './song';
 
 /**

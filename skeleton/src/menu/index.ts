@@ -211,6 +211,24 @@ export const PROFILE_SETTINGS: readonly ProfileSetting[] = [
     ],
   },
   {
+    id: 'announce',
+    name: 'Announcements',
+    choices: [
+      { label: 'Normal', patch: { announce: 'normal' }, is: (p: Profile) => p.announce === 'normal' },
+      { label: 'Detailed, every little thing', patch: { announce: 'detailed' }, is: (p: Profile) => p.announce === 'detailed' },
+      { label: 'Minimal, only what matters now', patch: { announce: 'minimal' }, is: (p: Profile) => p.announce === 'minimal' },
+    ],
+  },
+  {
+    id: 'coach',
+    name: 'Coach',
+    choices: [0, 1000, 2000, 3000].map((ms) => ({
+      label: ms === 0 ? 'Off' : `${ms / 1000} ${ms === 1000 ? 'second' : 'seconds'} early`,
+      patch: { coachLeadMs: ms },
+      is: (p: Profile) => p.coachLeadMs === ms,
+    })),
+  },
+  {
     id: 'mono',
     name: 'Sound',
     choices: [

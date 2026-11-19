@@ -276,3 +276,15 @@ describe('songs, portals and number gates', () => {
     expect(speech).toMatchObject({ text: `${gate.gate!.here} or ${gate.value}?` });
   });
 });
+
+describe('how the game is presented', () => {
+  it('every stage and boss passes properties 7 to 11: flashing, two senses, contrast, no hold, every line in the script', () => {
+    for (const s of STAGES) {
+      for (const boss of [false, true]) {
+        const kit = createGhastlyKit(s, { boss });
+        const failing = kit.provePresentation(kit.generate(2, { count: boss ? s.boss.count : s.count })).filter((r) => !r.pass);
+        expect(failing.map((r) => r.counterexample), `${s.name} boss=${boss}`).toEqual([]);
+      }
+    }
+  });
+});
