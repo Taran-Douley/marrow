@@ -7,13 +7,17 @@
   "workspaces": [
     "skeleton",
     "apps/*",
+    "examples/*",
     "mcp/*"
   ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "new-game": "node power/marrow/skills/build-an-accessible-game/scripts/new-game.mjs"
+    "setup": "node scripts/setup.mjs",
+    "new-game": "node power/marrow/skills/build-an-accessible-game/scripts/new-game.mjs",
+    "check-imports": "node scripts/check-imports.mjs",
+    "wire-objects": "node scripts/wire-objects.mjs --prove"
   }
 }
 

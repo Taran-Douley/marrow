@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./web": "./src/adapters/web/index.ts",
-    "./vite": "./src/adapters/web/vite-plugin.ts"
+    "./vite": "./src/adapters/web/vite-plugin.ts",
+    "./catalogue": "./src/catalogue/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

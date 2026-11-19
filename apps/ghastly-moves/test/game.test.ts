@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { EVENT_TYPES, cuesAudible, type Level, type SemanticEvent } from '@marrow/skeleton';
 import { describe, expect, it } from 'vitest';
 import { createGhastlyKit } from '../src/kit';
+import { OBJECTS } from '../src/objects/index.generated';
 import { TABLES, timesTable } from '../src/lessons';
 
 const SRC = fileURLToPath(new URL('../src', import.meta.url));
@@ -36,7 +37,7 @@ describe('the times-table lessons', () => {
 describe('every object and level passes the proof before it is merged (structure.md)', () => {
   it('declares a stone with a voice, a name, a caption and a vibration, and its own art', () => {
     const kit = createGhastlyKit(3);
-    expect(kit.registry.names()).toEqual(['stone']);
+    expect(kit.registry.names()).toEqual(['stone', ...OBJECTS.map((o) => o.name)]); // plus any object wired from src/objects
     const stone = kit.registry.get('stone')!;
     expect(stone.say).not.toBe('');
     expect(stone.caption).not.toBe('');
@@ -177,7 +178,7 @@ describe('the app uses only the public API (structure.md)', () => {
       for (const m of text.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
         const spec = m[1]!;
         if (spec.includes('skeleton')) {
-          expect(['@marrow/skeleton', '@marrow/skeleton/web'], `${file} imports ${spec}`).toContain(spec);
+          expect(['@marrow/skeleton', '@marrow/skeleton/web', '@marrow/skeleton/vite', '@marrow/skeleton/catalogue'], `${file} imports ${spec}`).toContain(spec);
         }
       }
     }

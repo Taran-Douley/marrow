@@ -40,4 +40,8 @@ Conventions:
 - Apps depend on the skeleton only through its public API: `@marrow/skeleton` (`skeleton/src/index.ts`) and the web adapter entry `@marrow/skeleton/web` (`skeleton/src/adapters/web/index.ts`). No app reaches into skeleton internals. The core never imports from `adapters/`, which is why the web adapter has its own entry.
 - Each app adds only object declarations, content and art. If an app needs a new behaviour, it goes into the skeleton.
 - Every new object or content file must pass the proof before it is merged.
+- The public API also has `@marrow/skeleton/vite` and `@marrow/skeleton/catalogue`. `scripts/check-imports.mjs` enforces the rule in CI and in `npm test`.
+- An object is one file in `apps/<game>/src/objects/` with `export default preset(...)`. `scripts/wire-objects.mjs` (run by the wire-new-object hook) writes `objects/index.generated.ts`, `test/objects.generated.test.ts` and `docs/objects-<game>.md`, then runs the proof.
+- `examples/hello/` is the smallest game: one `createGame` call. `skeleton/src/catalogue/` holds the ready-made objects; `docs/catalogue.md` is made from it.
+- `npm run setup` (`scripts/setup.mjs`) goes from a fresh clone to both games open.
 - A separate public repository will hold the Kiro Crew app (overnight Level Forge) for the Best Kiro Crew App bonus, under the same GitHub account.

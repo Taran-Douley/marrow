@@ -220,6 +220,8 @@ developers build into their own games; nothing may be hard-wired to ours.
 - [x] 22b. Queued speech, character voices, room echo and wobble (Req 30). Séance floors, doors, phantom feet and moan, wind, thunder, breath; fixed text panels and wrapped captions.
 - [x] 22c. Play-test fixes (Req 31), from bot play-tests: gate words fit at Fast ("12 or 35?"); the run holds for the intro and for a fall's lesson (`holdForWords`), with music playing on meanwhile; a 2-bar intro; phantom said only when it is news; a free hint after two catches; a known room says its name only. Séance wait per stop 10.3 s to 6.5 s.
 
+- [x] 22d. Plug and play (DONE 2026-11-19). `npm run setup` checks Node 20.19+, installs, checks public imports, builds both games, starts them on free local ports and opens them, and prints the next step; every failure says what to do. `createGame` in `@marrow/skeleton/web` gives a whole game from a title and objects (page, setup screen, menu, channels, proof, refusal); `examples/hello` is 4 lines. `@marrow/skeleton/catalogue`: 14 ready-made objects from both games with sound, speech, caption and haptic presets, `preset` and `useObject`; `docs/catalogue.md` is made from it. The wire-new-object hook runs `scripts/wire-objects.mjs --prove` on a new object file: registry, tests, docs, then the proof, with the counterexample in plain words. `scripts/check-imports.mjs` keeps games on the public API. README rewritten top first. No gameplay changed.
+
 ## Milestone 4 — Freeze and finish (30 Nov, then 1–3 Dec)
 
 - [ ] 23. Freeze checkpoint (Mon 30 Nov)

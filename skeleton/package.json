@@ -9,11 +9,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./web": "./src/adapters/web/index.ts",
-    "./vite": "./src/adapters/web/vite-plugin.ts"
+    "./vite": "./src/adapters/web/vite-plugin.ts",
+    "./catalogue": "./src/catalogue/index.ts"
   },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "catalogue": "vitest run test/catalogue.test.ts -u",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
