@@ -25,6 +25,31 @@ export function glow(): Texture | null {
   return glowTexture;
 }
 
+/** A soft dark blot, drawn once, for the cheap fake shadows under furniture. Null where there is no canvas. */
+let shadowTexture: Texture | null | undefined;
+export function shadow(): Texture | null {
+  if (shadowTexture !== undefined) return shadowTexture;
+  shadowTexture = null;
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d');
+  if (!g || typeof g.createRadialGradient !== 'function') return null;
+  try {
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(0,0,0,0.85)');
+    grad.addColorStop(0.55, 'rgba(0,0,0,0.4)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    shadowTexture = new CanvasTexture(c);
+  } catch {
+    shadowTexture = null;
+  }
+  return shadowTexture;
+}
+
 /** A glow that always faces you, unaffected by fog, so a light source reads from across the house. */
 export function halo(colour: number, size: number, opacity = 0.8): Sprite {
   const map = glow();

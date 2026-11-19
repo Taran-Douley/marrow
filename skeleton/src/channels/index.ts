@@ -95,6 +95,9 @@ function plainLine(ctx: Context, event: SemanticEvent): string | undefined {
       // The reason in plain words, then what to learn from it, if the game has something to teach.
       const reason = phrase(FALL_PHRASE[fallReasonOf(event)], {}, ctx.strings);
       const lesson = dataString(event, 'explain');
+      // A fall at the same obstacle again: the short reason and the try number, so play can start again at once.
+      const attempt = dataNumber(event, 'attempt');
+      if (dataBool(event, 'again') && attempt !== undefined) return `${reason} ${phrase('fallAttempt', { attempt: String(attempt) }, ctx.strings)}`;
       return lesson ? `${reason} ${lesson}` : reason;
     }
     case EVENT_TYPES.cleared:

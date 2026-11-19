@@ -252,7 +252,7 @@ describe('the page', () => {
     const startedAt = page.clock.ms;
     pressAt(page, startedAt, beatMs(seed, 0));
     page.frames(150);
-    expect(page.region()).toContain(`Not that one. ${first.value} is not a multiple of 3.`);
+    expect(page.region()).toContain(`Wrong number. ${first.value} is not a multiple of 3.`);
     expect(page.contexts[0]!.tones).toContain(150); // the bonk came first, before the words
     expect(page.stats()).toMatch(/^1 attempts, 0 right, 1 mistakes\./);
   });
@@ -263,7 +263,7 @@ describe('the page', () => {
     const page = await boot(`?level=${seed}`);
     page.key('Space', ' ');
     page.frames(beatMs(seed, 0) + 1500); // never press
-    expect(page.region()).toContain(`No press. ${first.value} is a multiple of 3: ${first.value! / 3} times 3.`);
+    expect(page.region()).toContain(`Missed. ${first.value} is a multiple of 3: ${first.value! / 3} times 3.`);
   });
 
   it('a press that is too early is a timing miss with no maths lesson, then play restarts at the same stone', async () => {
@@ -274,8 +274,8 @@ describe('the page', () => {
     const startedAt = page.clock.ms;
     pressAt(page, startedAt, beatMs(seed, 0) - 700);
     page.frames(100);
-    expect(page.region()).toContain('Pressed a little early.');
-    page.frames(4500); // the 2 s rest, then the countdown begins again
+    expect(page.region()).toContain('Early.');
+    page.frames(4500); // the short rest, then the countdown begins again
     expect(page.spoken.filter((t) => t === String(first.value)).length).toBeGreaterThanOrEqual(2);
   });
 
@@ -384,13 +384,15 @@ describe('the story', () => {
     count: number,
     stop: () => boolean = () => false,
     intro?: { type: string; at: number; data: Record<string, unknown> },
+    /** A pattern boss holds level time still until its whole introduction has been said. */
+    wholeHold = false,
   ): void {
     const lv = kit.generate(seed, { count });
     const { halfWidth, airtime, rates } = kit.timing;
     // The game holds the first countdown until the introduction has been said, so the level starts late by that much.
     const words = intro ? kit.render(intro).reduce((sum, c) => sum + (c.channel === 'speech' ? speechMs(c.text) : 0), 0) : 0;
     const firstCue = ((lv.obstacles[0]!.start - halfWidth + (lv.obstacles[0]!.start + lv.obstacles[0]!.width + halfWidth - airtime)) / 2 - 3 * kit.timing.beat) / rates.slow * 1000;
-    const hold = words === 0 ? 0 : Math.max(0, Math.round(words * 1.2) + 300 - firstCue);
+    const hold = words === 0 ? 0 : Math.max(0, Math.round(words * 1.2) + 300 - (wholeHold ? 0 : firstCue));
     const startedAt = page.clock.ms + hold;
     const beat = (i: number): number => {
       const o = lv.obstacles[i]!;
@@ -438,13 +440,15 @@ describe('the story', () => {
     page.frames(1600);
     page.key('Space', ' ');
     page.frames(200);
-    expect(page.region().join(' | ')).toMatch(/The Pumpkin King! Jump over every pumpkin bomb with an even number\. The others are duds: let them fly through you\..* Hit 9 times to win\./);
+    expect(page.region().join(' | ')).toMatch(/The Pumpkin King! Jump over every bomb with an even number\. The others are duds: let them fly through you\. Before each volley you hear what is coming\. A rising sound means lobbed bombs\. A low rumble means rolled bombs\..* Hit \d+ times to win\./);
 
     // Every right move is a hit. The boss falls at the ninth, before the throws run out.
     const bossKit = createGhastlyKit(stage1, { boss: true });
     const fightStarted = page.stats();
-    const bossIntro = { type: 'boss-intro', at: 0, data: { boss: stage1.boss.name, need: needed(stage1.boss), total: stage1.boss.count, prompt: bossKit.lesson!.prompt } };
-    playPerfect(page, bossKit, 1 + 7919, stage1.boss.count, () => page.region().some((l) => /You beat The Pumpkin King/.test(l)), bossIntro);
+    // The Pumpkin King's fight is a song, so the number of throws is whatever the song holds.
+    const throws = bossKit.generate(1 + 7919).obstacles.length;
+    const bossIntro = { type: 'boss-intro', at: 0, data: { boss: stage1.boss.name, need: needed(stage1.boss, throws), total: throws, prompt: bossKit.lesson!.prompt } };
+    playPerfect(page, bossKit, 1 + 7919, stage1.boss.count, () => page.region().some((l) => /You beat The Pumpkin King/.test(l)), bossIntro, true);
     vi.advanceTimersByTime(1300);
     expect(page.region().at(-1)).toMatch(/You beat The Pumpkin King! You win the Pumpkin Lantern\./);
     // The fight ended at the ninth hit: the level never ran out.
@@ -478,8 +482,16 @@ describe('the story', () => {
     page.key('Space', ' ');
     page.frames(100);
     page.key('Space', ' ');
-    page.frames(40_000); // no presses: the song plays, the player falls and retries, and every frame draws
-    expect(page.region().join(' | ')).toMatch(/No press\. \d+ is a multiple of 5/);
+    // No presses: the song plays, the player falls and retries, and every frame draws. The live region keeps
+    // only its last lines, so collect what it says as it goes.
+    const said = new Set<string>();
+    for (let i = 0; i < 400; i++) {
+      page.frames(100);
+      for (const line of page.region()) said.add(line);
+    }
+    expect([...said].join(' | ')).toMatch(/Missed\. \d+ is a multiple of 5/);
+    // The second fall at the same stone is short: the reason and the attempt, with no sum.
+    expect([...said].some((l) => /^Missed\. Attempt \d+\.$/.test(l))).toBe(true);
     const level = createGhastlyKit(STAGES[1]!).generate(1);
     expect(level.portals!.map((p) => p.move)).toContain('flip');
   });
@@ -489,8 +501,8 @@ describe('the story', () => {
     page.key('Space', ' ');
     page.frames(100);
     page.key('Space', ' ');
-    for (let i = 0; i < 400 && !page.region().some((l) => /No press/.test(l)); i++) page.frames(100);
-    expect(page.region().some((l) => /No press/.test(l))).toBe(true);
+    for (let i = 0; i < 400 && !page.region().some((l) => /^Missed/.test(l)); i++) page.frames(100);
+    expect(page.region().some((l) => /^Missed/.test(l))).toBe(true);
     const before = page.contexts[0]!.tones.length;
     page.frames(1800); // the rest after a fall, before the restart
     const during = page.contexts[0]!.tones.slice(before);

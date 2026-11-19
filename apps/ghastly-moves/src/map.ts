@@ -1,4 +1,5 @@
 import { themeFor, type Profile } from '@marrow/skeleton';
+import { drawSky } from './art';
 import type { Progress } from './progress';
 import { STAGES } from './stages';
 
@@ -150,16 +151,18 @@ export interface MapState {
 export function drawMap(ctx: CanvasRenderingContext2D, profile: Profile, state: MapState): void {
   const theme = themeFor(profile.theme, profile.palette);
   const scale = Math.min(profile.textScale, 1.4);
-  ctx.fillStyle = theme.background;
-  ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
-
-  // Moon and the title.
-  ctx.fillStyle = theme.mutedText;
-  ctx.globalAlpha = 0.5;
-  ctx.beginPath();
-  ctx.arc(860, 80, 38, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  // The same night sky and moon as the levels, standing still, and then the title.
+  drawSky(ctx, {
+    scenery: 'moon',
+    t: 0,
+    pxPerSec: 0,
+    nowMs: state.nowMs,
+    reducedMotion: true,
+    pulse: 0,
+    flat: profile.theme === 'high-contrast',
+    background: theme.background,
+    groundY: MAP_HEIGHT,
+  });
   ctx.fillStyle = theme.text;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';

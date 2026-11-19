@@ -1,5 +1,6 @@
 import {
   DEFAULT_WALK_SETTINGS,
+  runLengthWords,
   EVENT_TYPES,
   applySetting,
   applySetup,
@@ -12,11 +13,8 @@ import {
   type MenuEntry,
   createWalk,
   distancesFrom,
-  fewestSteps,
-  generateMaze,
   indexOf,
   mergeProfile,
-  proveMaze,
   speechMs,
   walkResult,
   withAcoustics,
@@ -36,6 +34,20 @@ import { MABEL, PASSAGE, RELICS, WARDROBE, WHISPERS, nameRooms, type Floor, type
 import { CLOSE_RANGE, heartRate, heartWords } from './dread';
 import { GUIDE, type GuideItem } from './guide';
 import { FRIGHTS, createSeanceKit, type Fright } from './kit';
+import {
+  CATCHES_KEY,
+  CATCH_LIMIT,
+  HOUSE_SIZES,
+  RUN_KEY,
+  caughtEndCaption,
+  caughtEndLine,
+  readCatchesEnd,
+  readRunCounter,
+  runFacts,
+  serveHouse,
+  type RunEnd,
+  type Size,
+} from './runs';
 import { HEIGHT, WIDTH, drawScene } from './scene';
 import { createView3d, type View3d } from './view3d';
 
@@ -54,11 +66,6 @@ if (!ctx) throw new Error('This browser cannot draw the game.');
 const VOICE_KEY = 'seance.voice';
 const SIZE_KEY = 'seance.size';
 const FRIGHT_KEY = 'seance.fright';
-/** House sizes: rooms along each side. Bigger houses have more rooms. */
-const SIZES = { small: 6, medium: 8, large: 10 } as const;
-type Size = keyof typeof SIZES;
-/** Relics to find in a house. */
-const RELIC_COUNT = 3;
 
 function saved(key: string): string | null {
   try {
@@ -96,7 +103,8 @@ const adapter = createWebAdapter({
 });
 
 let profile: Profile = adapter.withOsPreferences(adapter.loadProfile() ?? kit.newProfile());
-let mode: 'menu' | 'guide' | 'playing' = 'menu';
+/** 'ended' is the moment after a run: one press enters a new house. */
+let mode: 'menu' | 'guide' | 'playing' | 'ended' = 'menu';
 let walk: Walk | null = null;
 let maze: Maze | null = null;
 let rooms: RoomInfo[] = [];
@@ -109,6 +117,10 @@ let startedAt = 0;
 let nextBarAt = 0;
 let bar = 0;
 let lockoutUntil = 0;
+let runNumber = 0;
+let runSeed = 0;
+let runEnded = false;
+let escapes = 0;
 let games = 0;
 let bestScore = 0;
 
@@ -121,8 +133,22 @@ const voicePick = element<HTMLSelectElement>('voicepick');
 const stats = element<HTMLElement>('stats');
 
 const savedSize = saved(SIZE_KEY);
-sizeSelect.value = savedSize && savedSize in SIZES ? savedSize : 'medium';
-const selectedSize = (): Size => (sizeSelect.value in SIZES ? (sizeSelect.value as Size) : 'medium');
+sizeSelect.value = savedSize && savedSize in HOUSE_SIZES ? savedSize : 'medium';
+const selectedSize = (): Size => (sizeSelect.value in HOUSE_SIZES ? (sizeSelect.value as Size) : 'medium');
+
+// Catches end a run (on by default). Turning it off plays with no limit on catches.
+const catchesBox = element<HTMLInputElement>('catches');
+catchesBox.checked = readCatchesEnd(saved);
+const catchesEnd = (): boolean => catchesBox.checked;
+function setCatchesEnd(on: boolean): void {
+  catchesBox.checked = on;
+  save(CATCHES_KEY, on ? 'on' : 'off');
+}
+catchesBox.addEventListener('change', () => save(CATCHES_KEY, catchesBox.checked ? 'on' : 'off'));
+// The house number is the run counter: it moves on by itself after each run.
+// ?level= picks the first house of a visit; after that the counter leads.
+const urlLevel = Math.floor(Number(new URLSearchParams(location.search).get('level')));
+levelInput.value = String(Number.isFinite(urlLevel) && urlLevel >= 1 ? urlLevel : readRunCounter(saved));
 
 // ---- settings --------------------------------------------------------------
 
@@ -169,7 +195,7 @@ element('start').addEventListener('click', () => {
   adapter.unlock();
   unlocked = true;
   menus.close();
-  if (mode === 'menu' || mode === 'guide') {
+  if (mode === 'menu' || mode === 'guide' || mode === 'ended') {
     guide = null;
     start();
   }
@@ -270,8 +296,10 @@ function decorate(type: string, data: Readonly<Record<string, unknown>>): Record
       const mood = !s ? '' : s.chasing ? ' It knows where you are!' : s.ghostMode === 'hunt' ? ' It is hunting you.' : ' It is wandering.';
       return { mood };
     }
-    case 'caught':
-      return { line: MABEL.caught(Number(data.catches) || 1) };
+    case 'caught': {
+      const n = Number(data.catches) || 1;
+      return { line: catchesEnd() && n >= CATCH_LIMIT ? MABEL.lastCatch : MABEL.caught(n) };
+    }
     default:
       return undefined;
   }
@@ -331,41 +359,32 @@ function playGuide(item: GuideItem, now: number): void {
 
 // ---- playing ---------------------------------------------------------------
 
+/** Where this run starts looking for a house: the house number (the run counter), or `?level=` for the first run of a visit. */
 function readSeed(): number {
-  const fromUrl = new URLSearchParams(location.search).get('level');
-  const n = Math.floor(Number(fromUrl ?? levelInput.value));
+  const n = Math.floor(Number(levelInput.value));
   return Number.isFinite(n) && n >= 1 ? n : 1;
 }
 
-/** Build the house for a seed. A small house may not fit a fair ritual for every seed, so try the next. */
-function buildHouse(seed: number, side: number): Maze | null {
-  for (let i = 0; i < 10; i++) {
-    try {
-      return generateMaze(seed + i * 1009, { width: side, height: side, relics: RELIC_COUNT });
-    } catch {
-      // try the next
-    }
-  }
-  return null;
-}
+/** The sizes' lengths: only the standard house is held to 5 to 8 minutes. The others are the player's choice. */
+const lengthNote = (size: Size): string => (size === 'small' ? ' This is a small house: a shorter run.' : size === 'large' ? ' This is a large house: a longer run.' : '');
 
 function start(): void {
-  const seed = readSeed();
-  const side = SIZES[selectedSize()];
-  const house = buildHouse(seed, side);
-  if (!house) {
-    say(`House ${seed} could not be built fairly at this size. Try a larger house.`);
+  const firstSeed = readSeed();
+  const size = selectedSize();
+  // Every run is a new house. Each is proven before it is served; one that fails is skipped, and the skip is logged.
+  const served = serveHouse(firstSeed, size, (skip) => console.info(`Séance Escape: house ${skip.seed} skipped, not served. ${skip.reason}`));
+  if (!served) {
+    say(`No fair house could be found from number ${firstSeed}. Try another house number or size.`);
     mode = 'menu';
     return;
   }
-  // The game never serves a house the proof refuses.
-  const failing = proveMaze(house, `House ${seed}`).filter((r) => !r.pass);
-  if (failing.length > 0) {
-    say(failing[0]?.counterexample ?? `House ${seed} failed the proof.`);
-    mode = 'menu';
-    return;
-  }
-  kit = createSeanceKit({ fright: fright() });
+  const house = served.maze;
+  // The run counter moves on, so the next run is a new house, even after a reload.
+  const next = served.seed + 1;
+  levelInput.value = String(next);
+  save(RUN_KEY, String(next));
+  runNumber += 1;
+  runSeed = served.seed;  kit = createSeanceKit({ fright: fright() });
   chaseKit = createSeanceKit({ fright: fright(), chase: true });
   adapter.cancelPending({ silence: true });
   adapter.visual.reset();
@@ -389,13 +408,14 @@ function start(): void {
   viewBox.classList.toggle('has3d', view !== null);
   mode = 'playing';
   startedAt = performance.now();
+  runEnded = false;
   nextBarAt = startedAt;
   bar = 0;
   distanceKey = '';
   wasClose = false;
   nextHeartAt = startedAt;
   roomSoundAt.clear();
-  const intro = { type: 'intro', at: 0, data: { line: MABEL.intro } };
+  const intro = { type: 'intro', at: 0, data: { line: MABEL.intro + lengthNote(size) } };
   walk = createWalk({
     maze: house,
     speed: profile.speed,
@@ -412,21 +432,56 @@ function start(): void {
   announce('intro', intro.data);
 }
 
+/** What the run was, for its end. */
+function runEndFacts(how: RunEnd['how']): RunEnd | null {
+  if (!maze || !walk) return null;
+  const s = walk.snapshot();
+  const rooms = maze.rooms.filter((r) => s.visited[indexOf(maze!, r)]).length;
+  return { how, relicsFound: s.relicsFound, relicsTotal: maze.relics.length, rooms, ms: Math.round(performance.now() - startedAt), catches: s.catches };
+}
+
 function finish(): void {
-  if (!maze || !walk) return;
+  const end = runEndFacts('escaped');
+  if (!maze || !walk || !end || runEnded) return;
+  runEnded = true;
   const s = walk.snapshot();
   const result = walkResult(maze, s);
   games += 1;
+  escapes += 1;
   bestScore = Math.max(bestScore, result.score);
-  stats.textContent = `${games} escapes. Best score ${bestScore}. Last: rank ${result.rank}, ${s.steps} steps (the best way is ${fewestSteps(maze)}), caught ${s.catches} times, ${whispersHeard} of ${WHISPERS.length} whispers.`;
+  stats.textContent = `${games} runs, ${escapes} escapes. Best score ${bestScore}. Last: house ${runSeed}, escaped, rank ${result.rank}, ${runLengthWords(end.ms)}, caught ${s.catches} times, ${whispersHeard} of ${WHISPERS.length} whispers.`;
   walk = null;
-  mode = 'menu';
+  mode = 'ended';
   lockoutUntil = performance.now() + 1500;
   setTimeout(() => {
-    if (mode === 'menu') {
-      announce('summary', { rank: result.rank, score: result.score, catches: s.catches, whispers: whispersHeard, whisperTotal: WHISPERS.length });
+    if (mode === 'ended') {
+      announce('summary', {
+        facts: runFacts(end),
+        time: runLengthWords(end.ms),
+        rank: result.rank,
+        score: result.score,
+        catches: s.catches,
+        whispers: whispersHeard,
+        whisperTotal: WHISPERS.length,
+      });
     }
   }, 2200);
+}
+
+/** Three catches end the run, told gently: the house lets you go. One press enters a new house. */
+function endRunCaught(): void {
+  const end = runEndFacts('caught');
+  if (!maze || !walk || !end || runEnded) return;
+  runEnded = true;
+  games += 1;
+  stats.textContent = `${games} runs, ${escapes} escapes. Best score ${bestScore}. Last: house ${runSeed}, the house let you go, ${end.relicsFound} of ${end.relicsTotal} relics, ${runLengthWords(end.ms)}.`;
+  walk = null;
+  mode = 'ended';
+  lockoutUntil = performance.now() + 1500;
+  // Let the last catch be heard first.
+  setTimeout(() => {
+    if (mode === 'ended') announce('run-end', { line: caughtEndLine(end), caption: caughtEndCaption(end) });
+  }, 3200);
 }
 
 let view: View3d | null = null;
@@ -471,7 +526,7 @@ function mainEntries(): MenuEntry[] {
       kind: 'setting',
       id: 'size',
       name: 'House size',
-      choices: SIZE_NAMES.map((s) => ({ label: capital(s) })),
+      choices: [{ label: 'Small: a shorter run' }, { label: 'Medium: 5 to 8 minutes' }, { label: 'Large: a longer run' }],
       current: () => SIZE_NAMES.indexOf(selectedSize()),
     },
     {
@@ -480,6 +535,13 @@ function mainEntries(): MenuEntry[] {
       name: 'Fright',
       choices: [{ label: 'Full, jump scares' }, { label: 'Gentle, softer scares' }, { label: 'Off, no jump scares' }],
       current: () => FRIGHTS.indexOf(fright()),
+    },
+    {
+      kind: 'setting',
+      id: 'catches',
+      name: 'Catches end a run',
+      choices: [{ label: 'On: three catches end a run' }, { label: 'Off: no limit' }],
+      current: () => (catchesEnd() ? 0 : 1),
     },
     { kind: 'action', id: 'settings', label: 'Settings' },
   ];
@@ -527,6 +589,8 @@ function menuPress(now: number): void {
   } else if (r.id === 'fright') {
     frightSelect.value = FRIGHTS[r.choice]!;
     frightSelect.dispatchEvent(new Event('change'));
+  } else if (r.id === 'catches') {
+    setCatchesEnd(r.choice === 0);
   } else {
     setProfile(applySetting(profile, r.id, r.choice));
   }
@@ -541,6 +605,10 @@ function press(): void {
     // With scanning (the default), the first press opens the menu and the next ones choose.
     if (menus.top()) menuPress(now);
     else openMenus(now);
+  } else if (mode === 'ended') {
+    // One press, any key: the next run, in a new house.
+    guide = null;
+    start();
   } else if (mode === 'menu') openGuide(now);
   else if (mode === 'guide') guidePress(now);
   else walk?.press(now);
@@ -698,6 +766,7 @@ function frame(): void {
     roomSounds(now);
     livingHouse(now);
     if (snapshot.phase === 'escaped') finish();
+    else if (catchesEnd() && snapshot.catches >= CATCH_LIMIT) endRunCaught();
   }
   if (profile.picture) {
     if (view && snapshot) {

@@ -17,6 +17,7 @@ export { eventsReachTwoSenses } from './senses';
 export { lessonProperty } from './lesson';
 export { coachInTime } from './coach';
 export { MAX_FLASHES_PER_SECOND, linesInScript, noHoldOrChord, noUnsafeFlashing, repairsKeepTheLevel, themesHaveContrast } from './presentation';
+export { RETRY_LIMIT_MS, lockedToTheSong, pulsesGentle, retryDelays, retryInTime } from './rhythm';
 export { gateWordsInTime, gatesHaveOneRightLane, portalsGiveWarning, restsAreRests, songProperties } from './song';
 
 /**

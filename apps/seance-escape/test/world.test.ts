@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { generateMaze, openings, type Maze } from '@marrow/skeleton';
 import { CELL, buildHouse, cellCentre, ease, layoutHouse, shortestAngle, yawFor } from '../src/world';
-import { lookAngleOf, wrapRelative } from '../src/view3d';
+import { MAX_FLICKER_HZ, fastestFlickerHz, lookAngleOf, wrapRelative } from '../src/view3d';
+import { nameRooms } from '../src/content';
 
 describe('the 3D house layout', () => {
   it('is the same house for the same seed, and a different one for another', () => {
@@ -124,5 +125,35 @@ describe('camera maths', () => {
     expect(lookAngleOf({ phase: 'choosing', options, lit: 'listen' })).toBe(0);
     expect(lookAngleOf({ phase: 'walking', options, lit: 'dir:1' })).toBe(0);
     expect(lookAngleOf({ phase: 'choosing', options, lit: null })).toBe(0);
+  });
+});
+
+describe('the look of the house', () => {
+  const plain = { wall: null, floor: null, ceiling: null };
+
+  it('has wainscoting, skirting, door frames and soft shadows, each as one instanced mesh for the whole house', () => {
+    const maze = generateMaze(9, { width: 12, height: 10, relics: 3 });
+    const house = buildHouse(maze, plain);
+    const instanced = house.group.children.filter((c) => (c as { isInstancedMesh?: boolean }).isInstancedMesh);
+    // walls, beams, three trims, posts, lintels, shadow blots
+    expect(instanced.length).toBeGreaterThanOrEqual(8);
+    expect(house.phantomGlow).toHaveLength(2);
+  });
+
+  it('keeps the number of things drawn modest for a laptop, in the standard house', () => {
+    for (const seed of [1, 2, 3]) {
+      const maze = generateMaze(seed, { width: 12, height: 10, relics: 3 });
+      const house = buildHouse(maze, plain, nameRooms(maze));
+      let drawn = 0;
+      house.group.traverse((o) => {
+        const d = o as { isMesh?: boolean; isSprite?: boolean; isInstancedMesh?: boolean; visible: boolean };
+        if ((d.isMesh || d.isSprite) && d.visible) drawn += 1;
+      });
+      expect(drawn, `seed ${seed}`).toBeLessThan(1500);
+    }
+  });
+
+  it('nothing flickers more than three times a second', () => {
+    expect(fastestFlickerHz()).toBeLessThanOrEqual(MAX_FLICKER_HZ);
   });
 });

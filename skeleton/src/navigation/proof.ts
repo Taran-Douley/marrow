@@ -1,4 +1,5 @@
 import { proofResult, type ProofResult } from '../proof';
+import { RUN_BAND, RUN_PROFILES, estimateRunMs, runLengthWords, type RunLines, type RunProfile } from './explorer';
 import { distancesFrom, indexOf, neighbour, opposite, openings, sameCell, simulateRitual, type Cell, type Maze } from './maze';
 
 const where = (c: { x: number; y: number }): string => `column ${c.x + 1}, row ${c.y + 1}`;
@@ -14,8 +15,47 @@ const where = (c: { x: number; y: number }): string => `column ${c.x + 1}, row $
  *  204 Well formed: every passage can be walked both ways, and none leaves the house.
  *  205 Ritual route safe (houses with relics): fetching every relic the best way, then running the chase, is never caught.
  *  206 Ritual well placed: relics and hiding places are reachable rooms, and the exit is a room.
+ *  207 Run length fits (only when asked, with `options.runLength`): a clean run takes 5 to 8 minutes
+ *      at every speed and scanning dwell. A house that is too short or too long is skipped, never served.
  */
-export function proveMaze(maze: Maze, label = `House ${maze.seed}`): ProofResult[] {
+export interface ProveMazeOptions {
+  /** Also judge how long a run takes. `true` uses the defaults: 5 to 8 minutes, every speed and dwell. */
+  runLength?: boolean | RunLengthOptions;
+}
+
+export interface RunLengthOptions {
+  /** Defaults to RUN_BAND (5 to 8 minutes). */
+  band?: { minMs: number; maxMs: number };
+  /** Defaults to every speed and every dwell in RUN_PROFILES. */
+  profiles?: readonly RunProfile[];
+  /** How long the spoken lines take, if the game's words differ from the defaults. */
+  lines?: Partial<RunLines>;
+}
+
+/** Property 207. Exported so a game can judge a house by its own profiles and words. */
+export function proveRunLength(maze: Maze, label: string, options: RunLengthOptions = {}): ProofResult {
+  const band = options.band ?? RUN_BAND;
+  const profiles = options.profiles ?? RUN_PROFILES;
+  const problems: string[] = [];
+  for (const profile of profiles) {
+    const ms = estimateRunMs(maze, profile, options.lines);
+    if (ms < band.minMs || ms > band.maxMs) {
+      problems.push(
+        `${label}: at ${profile.speed} speed with a ${profile.dwellMs} ms dwell a clean run takes about ${runLengthWords(ms)}. ` +
+          `A run must take ${runLengthWords(band.minMs)} to ${runLengthWords(band.maxMs)}.`,
+      );
+    }
+  }
+  return proofResult(207, 'Run length fits', problems);
+}
+
+export function proveMaze(maze: Maze, label = `House ${maze.seed}`, options: ProveMazeOptions = {}): ProofResult[] {
+  const results = proveStructure(maze, label);
+  if (options.runLength) results.push(proveRunLength(maze, label, options.runLength === true ? {} : options.runLength));
+  return results;
+}
+
+function proveStructure(maze: Maze, label: string): ProofResult[] {
   const fromStart = distancesFrom(maze, maze.start);
   const fromGhost = distancesFrom(maze, maze.ghost);
 

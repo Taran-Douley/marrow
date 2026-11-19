@@ -1,4 +1,5 @@
-import { moveAt, sectionAt, sideBefore, themeFor, type Kit, type Level, type Move, type Obstacle, type Profile, type RunSnapshot } from '@marrow/skeleton';
+import { moveAt, pulseAt, sectionAt, sideBefore, themeFor, type Kit, type Level, type Move, type Obstacle, type Profile, type RunSnapshot } from '@marrow/skeleton';
+import { drawGhost, drawGround, drawLayers, drawSky, type ArtState } from './art';
 import { drawBoss, drawHealth } from './boss';
 import { drawItem } from './map';
 import type { BossLook, Scenery } from './stages';
@@ -37,6 +38,8 @@ export interface SceneState {
   items?: readonly string[];
   /** The boss fight, when there is one. Times are real-clock ms. */
   boss?: BossState | null;
+  /** How the run is going, in numbers, so progress is read and not only felt. */
+  stats?: { percent: number; attempt: number; best: number } | null;
 }
 
 export interface BossState {
@@ -56,87 +59,28 @@ const freshness = (now: number, at: number, ms: number): number => Math.max(0, 1
 
 const POPUP_MS = 900;
 
-/** Far scenery, drawn faint and still behind everything, so it adds a place without costing contrast. */
-function drawScenery(ctx: CanvasRenderingContext2D, kind: Scenery, colour: string, accent: string): void {
-  ctx.save();
-  ctx.fillStyle = colour;
-  ctx.globalAlpha = 0.5;
-  for (let i = 0; i < 28; i++) ctx.fillRect(((i * 197) % 880) + 40, ((i * 83) % 190) + 70, 2, 2);
-  ctx.globalAlpha = 0.18;
-  if (kind === 'woods' || kind === 'hollow') {
-    for (let i = 0; i < 9; i++) {
-      const x = 40 + i * 110 + (i % 2) * 20;
-      const h = kind === 'hollow' ? 150 : 110 + (i % 3) * 30;
-      ctx.fillStyle = colour;
-      ctx.beginPath();
-      ctx.moveTo(x, GROUND_Y);
-      ctx.lineTo(x + 38, GROUND_Y - h);
-      ctx.lineTo(x + 76, GROUND_Y);
-      ctx.closePath();
-      ctx.fill();
-    }
-  } else if (kind === 'gate') {
-    ctx.fillStyle = colour;
-    ctx.fillRect(330, GROUND_Y - 190, 26, 190);
-    ctx.fillRect(604, GROUND_Y - 190, 26, 190);
-    ctx.beginPath();
-    ctx.arc(480, GROUND_Y - 190, 150, Math.PI, 0);
-    ctx.lineWidth = 14;
-    ctx.strokeStyle = colour;
-    ctx.stroke();
-    for (let x = 366; x < 604; x += 28) ctx.fillRect(x, GROUND_Y - 190, 4, 190);
-  } else if (kind === 'patch') {
-    ctx.fillStyle = accent;
-    for (let i = 0; i < 12; i++) {
-      const x = 60 + i * 78 + (i % 3) * 14;
-      ctx.beginPath();
-      ctx.ellipse(x, GROUND_Y - 14 - (i % 2) * 6, 24, 18, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (kind === 'mill') {
-    ctx.fillStyle = colour;
-    ctx.fillRect(700, GROUND_Y - 200, 90, 200);
-    ctx.beginPath();
-    ctx.moveTo(690, GROUND_Y - 200);
-    ctx.lineTo(745, GROUND_Y - 260);
-    ctx.lineTo(800, GROUND_Y - 200);
-    ctx.fill();
-    ctx.strokeStyle = colour;
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.moveTo(745, GROUND_Y - 150);
-    ctx.lineTo(745, GROUND_Y - 280);
-    ctx.moveTo(680, GROUND_Y - 215);
-    ctx.lineTo(810, GROUND_Y - 215);
-    ctx.stroke();
-  } else if (kind === 'mist' || kind === 'midnight') {
-    ctx.fillStyle = accent;
-    for (let i = 0; i < 4; i++) ctx.fillRect(0, GROUND_Y - 30 - i * 34, WIDTH, 16);
-  }
-  ctx.restore();
-}
-
 export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Profile, scene: SceneState): void {
   const theme = themeFor(profile.theme, profile.palette);
-  ctx.fillStyle = theme.background;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-  // Moon, scenery and ground.
-  drawScenery(ctx, scene.scenery ?? 'moon', theme.mutedText, theme.line);
-  ctx.fillStyle = theme.mutedText;
-  ctx.beginPath();
-  ctx.arc(820, 90, scene.scenery === 'midnight' ? 52 : 34, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = theme.panel;
-  ctx.fillRect(0, GROUND_Y, WIDTH, HEIGHT - GROUND_Y);
-  ctx.strokeStyle = theme.line;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND_Y);
-  ctx.lineTo(WIDTH, GROUND_Y);
-  ctx.stroke();
-
   const t = scene.snapshot?.t ?? 0;
+  // The picture breathes with the song: one soft swell a beat, none when motion is reduced, and none
+  // in a level that has no song to keep time with.
+  const pulse = scene.level?.sections ? pulseAt(t, kit.timing.beat, profile.reducedMotion) : 0;
+  const art: ArtState = {
+    scenery: scene.scenery ?? 'moon',
+    t,
+    pxPerSec: PX_PER_SEC,
+    nowMs: scene.nowMs,
+    reducedMotion: profile.reducedMotion,
+    pulse,
+    flat: profile.theme === 'high-contrast',
+    background: theme.background,
+    groundY: GROUND_Y,
+  };
+  // Sky, moon, three layers of scenery, and the ground. All of it is dim behind the obstacles.
+  drawSky(ctx, art);
+  drawLayers(ctx, art);
+  drawGround(ctx, art, { panel: theme.panel, line: theme.line });
+
   const half = kit.timing.halfWidth * PX_PER_SEC;
   const streak = scene.snapshot?.streak ?? 0;
 
@@ -191,7 +135,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
       // In a boss fight, a throw is in the boss's hand until it is let go, then arcs down to the ground.
       if (boss && x > RELEASE_X) continue;
       const progress = boss ? Math.min(1, Math.max(0, (RELEASE_X - x) / (RELEASE_X - (GHOST_X + 60)))) : 1;
-      const lift = boss ? (1 - progress) ** 2 * 150 : 0;
+      const lift = boss && o.kind !== 'rolled-bomb' ? (1 - progress) ** 2 * 150 : 0; // a rolled bomb stays on the ground
       const height = 74;
       const box = { x, y: GROUND_Y - height - lift, width: w, height, ...(o.value !== undefined ? { value: o.value } : {}) };
       // A stone you were right to let pass fades once you are through it. Never before:
@@ -211,45 +155,13 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
   const bob = profile.reducedMotion || lift !== 0 || pose.moving ? 0 : Math.sin(scene.nowMs / 220) * 3;
   const gy = pose.y - lift + bob;
 
-  // The lantern grows and glows with the streak: a tune you build is a light you build.
-  const glow = 9 + Math.min(streak, 10) * 2.2;
-  if (streak > 0) {
-    ctx.globalAlpha = 0.12 + Math.min(streak, 10) * 0.025;
-    ctx.fillStyle = theme.amber;
-    ctx.beginPath();
-    ctx.arc(GHOST_X + 30, gy + 8, glow * 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-
   ctx.save();
   if (pose.upsideDown) {
     // On the ceiling the ghost hangs upside down: the picture matches the flip you heard.
     ctx.translate(0, gy * 2);
     ctx.scale(1, -1);
   }
-  ctx.globalAlpha = scene.falling ? 0.45 : 1;
-  ctx.fillStyle = '#f4efe6';
-  ctx.beginPath();
-  ctx.ellipse(GHOST_X, gy, Math.max(half, 16), 34, 0, Math.PI, 0);
-  ctx.lineTo(GHOST_X + Math.max(half, 16), gy + 28);
-  ctx.lineTo(GHOST_X + 8, gy + 20);
-  ctx.lineTo(GHOST_X, gy + 28);
-  ctx.lineTo(GHOST_X - 8, gy + 20);
-  ctx.lineTo(GHOST_X - Math.max(half, 16), gy + 28);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#14101f';
-  ctx.fillRect(GHOST_X - 8, gy - 12, 5, 8);
-  ctx.fillRect(GHOST_X + 4, gy - 12, 5, 8);
-  ctx.fillStyle = theme.amber;
-  ctx.beginPath();
-  ctx.arc(GHOST_X + 30, gy + 8, 9 + Math.min(streak, 10) * 0.8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = theme.text;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  drawGhost(ctx, { x: GHOST_X, y: gy, halfWidth: half, nowMs: scene.nowMs, reducedMotion: profile.reducedMotion, faded: scene.falling, streak, pulse, lantern: theme.amber, line: theme.text });
   ctx.restore();
 
   // In a song: the move and the part in words, and the beat as four dots, the one now filled. The edge
@@ -290,6 +202,14 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
     ctx.textAlign = 'left';
     ctx.fillStyle = theme.text;
     ctx.fillText(scene.hud, 24, 80);
+  }
+  if (scene.stats) {
+    ctx.textAlign = 'right';
+    ctx.fillStyle = theme.text;
+    ctx.font = `bold ${Math.round(20 * Math.min(profile.textScale, 1.5))}px ${FONT}`;
+    ctx.fillText(`Progress ${scene.stats.percent}%`, WIDTH - 24, 70);
+    ctx.fillStyle = theme.mutedText;
+    ctx.fillText(`Attempt ${scene.stats.attempt}   Best ${scene.stats.best}%`, WIDTH - 24, 96);
   }
   (scene.items ?? []).forEach((id, i) => drawItem(ctx, id, WIDTH - 36 - i * 44, 36, 15, '#14101f'));
 }

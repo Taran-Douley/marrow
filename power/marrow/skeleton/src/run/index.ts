@@ -50,6 +50,12 @@ export interface RunSettings {
    * still the player's: a press on something to let pass is still a mistake. Graded Good, never Perfect.
    */
   assist: boolean;
+  /**
+   * Teach once: the long explanation of a fall (the sum behind a wrong number) is given the first time a
+   * player falls at an obstacle. Falls there again give the short reason and the try number only, so play
+   * can start again at once. Default false.
+   */
+  explainOnce: boolean;
   scoring: Scoring;
 }
 
@@ -63,6 +69,7 @@ export const DEFAULT_RUN_SETTINGS: RunSettings = {
   lateGrace: 0.6,
   lookahead: 0.25,
   assist: false,
+  explainOnce: false,
   scoring: {
     perfectAt: 0.2,
     goodAt: 0.6,
@@ -147,6 +154,8 @@ export interface RunSnapshot {
   /** Right decisions in a row. */
   streak: number;
   bestStreak: number;
+  /** Falls so far in this level. The attempt being played is this plus one. */
+  falls: number;
   /**
    * Level time is standing still: resting after a fall, or held for words. Its music stops with it, so
    * a game can play something on real time meanwhile.
@@ -218,6 +227,12 @@ export function coachTimes(level: Level, timing: Timing, speed: Speed, leadMs: n
   return out;
 }
 
+/**
+ * How long level time is held for a line of speech that takes `speechMs` to say: a fifth more, and
+ * 300 ms, because voices differ in speed. Nothing is held for a line with no words.
+ */
+export const wordsHoldMs = (speechMs: number): number => (speechMs <= 0 ? 0 : Math.round(speechMs * 1.2) + 300);
+
 export function createRun(options: RunOptions): Run {
   const { level, timing, speed, events } = options;
   const settings = resolveRunSettings(options.settings);
@@ -262,6 +277,9 @@ export function createRun(options: RunOptions): Run {
   let score = 0;
   let streak = 0;
   let bestStreak = 0;
+  let falls = 0;
+  /** Obstacles the player has fallen at, so a repeat fall can be told shortly (`explainOnce`). */
+  const fellAt = new Set<number>();
   /** With timing help: the obstacle whose move waits for its fourth beat. */
   let heldFor = -1;
   /** Real ms before which level time stands still (see `holdUntil`). */
@@ -303,7 +321,10 @@ export function createRun(options: RunOptions): Run {
     const plan = plans[i]!;
     attempt(reason, pressedAt);
     streak = 0;
-    const explain = plan.value === undefined ? undefined : options.explain?.({ value: plan.value, solid: plan.solid }, reason);
+    falls += 1;
+    const again = settings.explainOnce && fellAt.has(i);
+    fellAt.add(i);
+    const explain = plan.value === undefined || again ? undefined : options.explain?.({ value: plan.value, solid: plan.solid }, reason);
     options.emit(
       {
         type: EVENT_TYPES.fallReason,
@@ -311,6 +332,8 @@ export function createRun(options: RunOptions): Run {
         data: {
           reason,
           index: i,
+          attempt: falls + 1,
+          ...(again ? { again: true } : {}),
           ...(plan.value !== undefined ? { value: plan.value } : {}),
           ...(explain ? { explain } : {}),
         },
@@ -487,6 +510,7 @@ export function createRun(options: RunOptions): Run {
       score,
       streak,
       bestStreak,
+      falls,
       held: phase === 'recover' || (phase === 'play' && lastReal < heldUntil),
     }),
   };

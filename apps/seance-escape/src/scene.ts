@@ -38,7 +38,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, profile: Profile, scene
     // A dark edge, so the lantern is the light. It is still: it never pulses.
     const vignette = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, HEIGHT * 0.35, WIDTH / 2, HEIGHT / 2, HEIGHT * 0.95);
     vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
+    vignette.addColorStop(0.6, 'rgba(10,4,2,0.22)');
+    vignette.addColorStop(1, 'rgba(6,2,3,0.66)');
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     if (s?.phase === 'caught') {

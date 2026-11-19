@@ -45,7 +45,8 @@ describe('the story', () => {
         for (let seed = 1; seed <= 30; seed++) {
           const level = kit.generate(seed, { count });
           // A boss fight has a set number of throws; a stage is as long as its song.
-          if (boss) expect(level.obstacles).toHaveLength(count);
+          if (boss && !s.boss.pattern) expect(level.obstacles).toHaveLength(count);
+          else if (boss) expect(level.obstacles.length, s.name).toBeGreaterThanOrEqual(8); // a pattern boss is a song
           else expect(level.obstacles.length, s.name).toBeGreaterThanOrEqual(s.count);
           const failing = kit.prove(level).filter((r) => !r.pass);
           expect(failing.map((r) => r.counterexample), `${s.name} boss=${boss} level ${seed}`).toEqual([]);
@@ -141,6 +142,11 @@ describe('the boss fight', () => {
     const sounds = new Set<string>();
     for (const stage of STAGES) {
       const kit = createGhastlyKit(stage, { boss: true });
+      if (stage.boss.pattern) {
+        // A pattern boss has a throw for each kind, each with its own beep (see pattern.test.ts).
+        expect(kit.registry.kinds().map((k) => k.name)).toEqual(stage.boss.pattern.throws.map((t) => t.name));
+        continue;
+      }
       expect(kit.registry.kinds().map((k) => k.name)).toEqual([stage.boss.projectile.name]);
       const def = kit.registry.get(stage.boss.projectile.name)!;
       expect(def.say).toBe(stage.boss.projectile.label);
@@ -149,7 +155,7 @@ describe('the boss fight', () => {
       const stoneKit = createGhastlyKit(stage);
       expect(JSON.stringify(stoneKit.registry.get('stone')!.sound)).not.toBe(JSON.stringify(def.sound));
     }
-    expect(sounds.size).toBe(1); // one boss sound for the whole game, so a player learns it once
+    expect(sounds.size).toBe(1); // one boss sound for the whole game (bar the Pumpkin King, who has two), so a player learns it once
   });
 
   it('the boss prompt says what to jump and what to let fly through, in words', () => {
@@ -298,6 +304,7 @@ describe('the catalogue matches the game', () => {
         const kit = createGhastlyKit(s, { boss });
         for (const name of kit.registry.names()) {
           if (OBJECTS.some((o) => o.name === name)) continue;
+          if (s.boss.pattern?.throws.some((t) => t.name === name)) continue; // a pattern boss's own throws are not in the catalogue
           const def = kit.registry.get(name)!;
           const p = CATALOGUE.find((c) => c.name === name);
           expect(p, name).toBeDefined();
