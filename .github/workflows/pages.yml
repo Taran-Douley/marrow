@@ -1,0 +1,57 @@
+name: Pages
+
+# Build both games and the hello example, and publish them on GitHub Pages:
+#   https://taran-douley.github.io/marrow/                  the start page
+#   https://taran-douley.github.io/marrow/ghastly-moves/    Ghastly Moves
+#   https://taran-douley.github.io/marrow/seance-escape/    Séance Escape
+#   https://taran-douley.github.io/marrow/hello/            the 4-line example
+# Each game is built with a relative base, so it works in its folder, and offline after the first visit.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace apps/ghastly-moves
+      - run: npm run build --workspace apps/seance-escape
+      - run: npm run build --workspace examples/hello
+      - name: Put the site together
+        run: |
+          mkdir -p site
+          cp -r apps/ghastly-moves/dist site/ghastly-moves
+          cp -r apps/seance-escape/dist site/seance-escape
+          cp -r examples/hello/dist site/hello
+          cp docs/site/index.html site/index.html
+          touch site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
