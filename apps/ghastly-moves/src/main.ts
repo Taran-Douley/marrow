@@ -1,6 +1,12 @@
 import {
   EVENT_TYPES,
   LevelRefused,
+  applySetting,
+  applySetup,
+  createMenuStack,
+  profileEntries,
+  setupEntries,
+  type MenuEntry,
   createSessionLog,
   mergeProfile,
   speechMs,
@@ -13,7 +19,7 @@ import {
   type RunSnapshot,
   type SemanticEvent,
 } from '@marrow/skeleton';
-import { clipsBySlug, createWebAdapter, registerOffline } from '@marrow/skeleton/web';
+import { clipsBySlug, createWebAdapter, drawMenu, registerOffline } from '@marrow/skeleton/web';
 import { createGhastlyKit } from './kit';
 import { TABLES } from './lessons';
 import { drawMap } from './map';
@@ -172,7 +178,13 @@ stageSelect.addEventListener('change', () => {
 speedSelect.addEventListener('change', () => change({ speed: speedSelect.value as Profile['speed'] }));
 pictureBox.addEventListener('change', () => change({ picture: pictureBox.checked }));
 voiceBox.addEventListener('change', () => change({ voice: voiceBox.checked }));
-element('start').addEventListener('click', () => press());
+// The Start button plays at once: a mouse user does not need the scanning menu.
+element('start').addEventListener('click', () => {
+  adapter.unlock();
+  soundUnlocked = true;
+  menus.close();
+  play();
+});
 element('download').addEventListener('click', downloadCsv);
 
 // ---- output ----------------------------------------------------------------
@@ -398,7 +410,105 @@ function toMenu(): void {
   falling = false;
   hud = '';
   adapter.cancelPending({ silence: true });
-  announceMenu();
+  menus.close();
+  if (profile.scanning && soundUnlocked) openMenus(performance.now());
+  else announceMenu();
+}
+
+// ---- the one-switch menu ------------------------------------------------------------
+
+/**
+ * Everything on the page can be done with one switch: the menu lights each entry in turn and says
+ * it, and a press chooses. Settings change with each press and say their new value. The first time,
+ * a short setup asks how you like to play. The page's form does the same for mouse and keyboard.
+ */
+const menus = createMenuStack({
+  dwellMs: () => profile.dwellMs,
+  say: (lit, opening) => announce(EVENT_TYPES.menuOption, { label: opening ? `${opening} ${lit.label}` : lit.label, index: lit.index, count: lit.count }),
+});
+
+function mainEntries(): MenuEntry[] {
+  return [
+    { kind: 'action', id: 'play', label: 'Play' },
+    {
+      kind: 'setting',
+      id: 'stage',
+      name: 'Stage',
+      choices: [{ label: 'Free practice' }, ...STAGES.map((st) => ({ label: `${st.id}, ${st.name}, ${st.rule}` }))],
+      current: () => (selectedStage() ? STAGES.indexOf(selectedStage()!) + 1 : 0),
+    },
+    {
+      kind: 'setting',
+      id: 'table',
+      name: 'Practice table',
+      choices: TABLES.map((t) => ({ label: `${t} times` })),
+      current: () => Math.max(0, (TABLES as readonly number[]).indexOf(selectedTable())),
+    },
+    { kind: 'setting', id: 'assist', name: 'Timing help', choices: [{ label: 'Off' }, { label: 'On, press any time in the countdown' }], current: () => (assistBox.checked ? 1 : 0) },
+    { kind: 'action', id: 'settings', label: 'Settings' },
+  ];
+}
+
+/** The main menu's title: where the story is. Said once, as the menu opens. */
+const mainTitle = (): string => `Ghastly Moves. ${describeNext(progress)}`;
+
+function openMenus(now: number): void {
+  menus.close();
+  if (!profile.setupDone) menus.open({ title: 'Welcome. How would you like to play?', entries: setupEntries() }, now);
+  else menus.open({ title: mainTitle(), entries: mainEntries() }, now);
+}
+
+function menuPress(now: number): void {
+  const r = menus.press(now);
+  if (!r) return;
+  if (r.kind === 'action') {
+    if (r.id === 'play') {
+      menus.close();
+      play();
+    } else if (r.id === 'settings') {
+      menus.open({ title: 'Settings', entries: profileEntries(() => profile) }, now);
+    } else if (r.id.startsWith('setup:')) {
+      const done = applySetup(profile, r.id)!;
+      setProfile(done.profile);
+      menus.close();
+      // What the choice did is said first, in the same line as the menu, so nothing cuts it off.
+      menus.open({ title: mainTitle(), entries: mainEntries() }, now, undefined, done.says || undefined);
+      if (done.more) menus.open({ title: 'Settings', entries: profileEntries(() => profile) }, now);
+    }
+    return;
+  }
+  if (r.id === 'stage') {
+    stageSelect.value = r.choice === 0 ? '' : String(STAGES[r.choice - 1]!.id);
+    save(STAGE_KEY, stageSelect.value);
+    bossTries = 0;
+  } else if (r.id === 'table') {
+    tableSelect.value = String(TABLES[r.choice]);
+    save(TABLE_KEY, tableSelect.value);
+  } else if (r.id === 'assist') {
+    assistBox.checked = r.choice === 1;
+    save(ASSIST_KEY, assistBox.checked ? 'on' : 'off');
+  } else {
+    setProfile(applySetting(profile, r.id, r.choice));
+  }
+}
+
+function setProfile(next: Profile): void {
+  profile = next;
+  adapter.saveProfile(profile);
+  syncForm();
+}
+
+/** Play: a story stage opens with a card that tells where you are, then the next press begins. */
+function play(): void {
+  const story = selectedStage();
+  if (story) {
+    kit = createGhastlyKit(story);
+    mode = 'card';
+    upNext = 'stage';
+    announce('story-card', { story: story.story, rule: story.rule });
+  } else {
+    start('practice');
+  }
 }
 
 function press(): void {
@@ -414,16 +524,13 @@ function press(): void {
     start(upNext);
     return;
   }
-  // From the menu: a story stage opens with a card that tells where you are, then the next press begins.
-  const story = selectedStage();
-  if (story) {
-    kit = createGhastlyKit(story);
-    mode = 'card';
-    upNext = 'stage';
-    announce('story-card', { story: story.story, rule: story.rule });
-  } else {
-    start('practice');
+  // From the menu: with scanning (the default), the first press opens the menu and the next ones choose.
+  if (profile.scanning) {
+    if (menus.top()) menuPress(now);
+    else openMenus(now);
+    return;
   }
+  play();
 }
 
 function showStats(): void {
@@ -518,6 +625,7 @@ function frame(): void {
     } else if (lastSnapshot.phase === 'done') finish();
   } else {
     menuMusic(now);
+    if (mode === 'menu') menus.tick(now);
   }
   if (profile.picture) {
     if (mode === 'playing') {
@@ -535,6 +643,8 @@ function frame(): void {
       });
     } else {
       drawMap(ctx!, profile, { progress, selected: selectedStage()?.id ?? 0, nowMs: now });
+      const view = mode === 'menu' ? menus.view() : null;
+      if (view) drawMenu(ctx!, profile, { x: WIDTH - 440, y: 20, width: 420, height: HEIGHT - 150 }, view);
     }
     adapter.drawCaptionBox(ctx!, profile, { x: 40, y: HEIGHT - 110, width: WIDTH - 80, height: 90 });
   }

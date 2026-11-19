@@ -54,6 +54,8 @@ export { validateTrack, trackCeilingHz, trackNotes, TRACK_SHARE, TRACK_LEVELS } 
 export type { TrackSpec } from './channels';
 export type { Acoustics, SoundRecipe } from './channels/audio';
 export { withAcoustics } from './channels/audio';
+export { BACK_ID, PROFILE_SETTINGS, SETUP_CHOICES, createMenuStack, applySetting, applySetup, createMenu, entryLabel, menuAudible, profileEntries, setupEntries } from './menu';
+export type { Menu, MenuStack, MenuStackOptions, MenuChoice, MenuEntry, MenuLit, MenuOptions, MenuResult } from './menu';
 export { barSeconds, generateSong, moveAt, sectionAt, sideBefore, validateSong } from './song';
 export type { Song, SongSection, SongOptions } from './song';
 export { gateWordsInTime, gatesHaveOneRightLane, portalsGiveWarning, restsAreRests, songProperties } from './proof';

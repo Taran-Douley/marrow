@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { defaultProfile } from '@marrow/skeleton';
 
 // Loads the real page and main.ts in a simulated browser, with fakes for canvas, audio and speech.
 // It checks the wiring only. It cannot judge how anything looks or sounds. A real player must.
@@ -50,7 +51,7 @@ interface Booted {
 /** Listeners a booted page added to window, so each test can remove them and not leak into the next. */
 const added: [string, EventListenerOrEventListenerObject][] = [];
 
-async function boot(search = '', voices: { name: string; lang: string; default?: boolean }[] = []): Promise<Booted> {
+async function boot(search = '', voices: { name: string; lang: string; default?: boolean }[] = [], profile?: string): Promise<Booted> {
   vi.resetModules();
   const realAdd = window.addEventListener.bind(window);
   vi.spyOn(window, 'addEventListener').mockImplementation(((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
@@ -60,6 +61,8 @@ async function boot(search = '', voices: { name: string; lang: string; default?:
   document.body.innerHTML = /<body>([\s\S]*)<\/body>/.exec(PAGE)![1]!.replace(/<script[\s\S]*?<\/script>/g, '');
   window.history.replaceState({}, '', `/${search}`);
   localStorage.clear();
+  // Most tests press straight in. The menu test passes a profile with scanning on.
+  localStorage.setItem('marrow.profile', profile ?? JSON.stringify({ ...defaultProfile(), scanning: false, setupDone: true }));
 
   const clock = { ms: 1000 };
   vi.spyOn(performance, 'now').mockImplementation(() => clock.ms);
@@ -202,6 +205,30 @@ describe('Séance Escape page', () => {
     page.frames(2000);
     page.key('Escape', 'Escape');
     expect(page.region().at(-1)).toBe(MENU);
+  });
+
+  it('one switch does everything: setup, a house setting, then into the house', async () => {
+    const page = await boot('?level=3', [], JSON.stringify(defaultProfile()));
+    const waitFor = (re: RegExp): void => {
+      for (let i = 0; i < 800 && !re.test(page.region().at(-1) ?? ''); i++) page.frames(100);
+      expect(page.region().at(-1)).toMatch(re);
+    };
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toBe('Welcome. How would you like to play? Just play');
+    waitFor(/^Play by sound$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toBe('Play by sound. The voice says everything. Headphones help. Séance Escape. Enter the house');
+    waitFor(/^Fright: Full, jump scares$/);
+    page.key('Space', ' ');
+    page.frames(100);
+    expect(page.region().at(-1)).toBe('Fright: Gentle, softer scares');
+    expect(localStorage.getItem('seance.fright')).toBe('gentle');
+    waitFor(/^Enter the house$/);
+    page.key('Space', ' ');
+    page.frames(15_000);
+    expect(page.spoken.join(' | ')).toMatch(/I'm Mabel/);
   });
 
   it('the fright setting is saved', async () => {

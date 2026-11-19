@@ -1,8 +1,14 @@
 import {
   DEFAULT_WALK_SETTINGS,
   EVENT_TYPES,
+  applySetting,
+  applySetup,
   bearingFrom,
+  createMenuStack,
   createScanner,
+  profileEntries,
+  setupEntries,
+  type MenuEntry,
   createWalk,
   distancesFrom,
   fewestSteps,
@@ -24,7 +30,7 @@ import {
   type Walk,
   type WalkSnapshot,
 } from '@marrow/skeleton';
-import { clipsBySlug, createWebAdapter, registerOffline } from '@marrow/skeleton/web';
+import { clipsBySlug, createWebAdapter, drawMenu, registerOffline } from '@marrow/skeleton/web';
 import { MABEL, PASSAGE, RELICS, WARDROBE, WHISPERS, nameRooms, type Floor, type RoomInfo, type RoomKind } from './content';
 import { CLOSE_RANGE, heartRate, heartWords } from './dread';
 import { GUIDE, type GuideItem } from './guide';
@@ -157,7 +163,16 @@ frightSelect.addEventListener('change', () => {
 speedSelect.addEventListener('change', () => change({ speed: speedSelect.value as Profile['speed'] }));
 pictureBox.addEventListener('change', () => change({ picture: pictureBox.checked }));
 voiceBox.addEventListener('change', () => change({ voice: voiceBox.checked }));
-element('start').addEventListener('click', () => press());
+// The Start button goes straight in: a mouse user does not need the scanning menu.
+element('start').addEventListener('click', () => {
+  adapter.unlock();
+  unlocked = true;
+  menus.close();
+  if (mode === 'menu' || mode === 'guide') {
+    guide = null;
+    start();
+  }
+});
 
 // ---- output ----------------------------------------------------------------
 
@@ -428,14 +443,102 @@ function toMenu(): void {
   guide = null;
   snapshot = null;
   adapter.cancelPending({ silence: true });
-  announce('menu');
+  menus.close();
+  if (profile.scanning && unlocked) openMenus(performance.now());
+  else announce('menu');
+}
+
+// ---- the one-switch menu ------------------------------------------------------------
+
+/**
+ * Everything can be done with one switch: the menu lights each entry in turn and says it, and a press
+ * chooses. Settings change with each press and say their new value. The first time, a short setup asks
+ * how you like to play. The page's form does the same for mouse and keyboard.
+ */
+const menus = createMenuStack({
+  dwellMs: () => profile.dwellMs,
+  say: (lit, opening) => announce(EVENT_TYPES.menuOption, { label: opening ? `${opening} ${lit.label}` : lit.label, index: lit.index, count: lit.count }),
+});
+let unlocked = false;
+
+const SIZE_NAMES: readonly Size[] = ['small', 'medium', 'large'];
+function mainEntries(): MenuEntry[] {
+  return [
+    { kind: 'action', id: 'enter', label: 'Enter the house' },
+    { kind: 'action', id: 'guide', label: 'Sound guide' },
+    {
+      kind: 'setting',
+      id: 'size',
+      name: 'House size',
+      choices: SIZE_NAMES.map((s) => ({ label: capital(s) })),
+      current: () => SIZE_NAMES.indexOf(selectedSize()),
+    },
+    {
+      kind: 'setting',
+      id: 'fright',
+      name: 'Fright',
+      choices: [{ label: 'Full, jump scares' }, { label: 'Gentle, softer scares' }, { label: 'Off, no jump scares' }],
+      current: () => FRIGHTS.indexOf(fright()),
+    },
+    { kind: 'action', id: 'settings', label: 'Settings' },
+  ];
+}
+
+const MAIN_TITLE = 'Séance Escape.';
+function openMenus(now: number): void {
+  menus.close();
+  if (!profile.setupDone) menus.open({ title: 'Welcome. How would you like to play?', entries: setupEntries() }, now);
+  else menus.open({ title: MAIN_TITLE, entries: mainEntries() }, now);
+}
+
+function setProfile(next: Profile): void {
+  profile = next;
+  adapter.saveProfile(profile);
+  syncForm();
+}
+
+function menuPress(now: number): void {
+  const r = menus.press(now);
+  if (!r) return;
+  if (r.kind === 'action') {
+    if (r.id === 'enter') {
+      menus.close();
+      start();
+    } else if (r.id === 'guide') {
+      menus.close();
+      openGuide(now);
+    } else if (r.id === 'settings') {
+      menus.open({ title: 'Settings', entries: profileEntries(() => profile) }, now);
+    } else if (r.id.startsWith('setup:')) {
+      const done = applySetup(profile, r.id)!;
+      setProfile(done.profile);
+      menus.close();
+      menus.open({ title: MAIN_TITLE, entries: mainEntries() }, now, undefined, done.says || undefined);
+      if (done.more) menus.open({ title: 'Settings', entries: profileEntries(() => profile) }, now);
+    }
+    return;
+  }
+  if (r.id === 'size') {
+    sizeSelect.value = SIZE_NAMES[r.choice]!;
+    save(SIZE_KEY, sizeSelect.value);
+  } else if (r.id === 'fright') {
+    frightSelect.value = FRIGHTS[r.choice]!;
+    frightSelect.dispatchEvent(new Event('change'));
+  } else {
+    setProfile(applySetting(profile, r.id, r.choice));
+  }
 }
 
 function press(): void {
   const now = performance.now();
   if (now < lockoutUntil) return;
   adapter.unlock();
-  if (mode === 'menu') openGuide(now);
+  unlocked = true;
+  if (mode === 'menu' && profile.scanning) {
+    // With scanning (the default), the first press opens the menu and the next ones choose.
+    if (menus.top()) menuPress(now);
+    else openMenus(now);
+  } else if (mode === 'menu') openGuide(now);
   else if (mode === 'guide') guidePress(now);
   else walk?.press(now);
 }
@@ -583,6 +686,7 @@ function frame(): void {
   adapter.poll();
   const now = performance.now();
   if (mode === 'guide') guideTick(now);
+  if (mode === 'menu') menus.tick(now);
   if (walk && mode === 'playing') {
     walk.advance(now);
     snapshot = walk.snapshot();
@@ -600,6 +704,8 @@ function frame(): void {
     const heart = walk && snapshot && maze ? heartWords(heartRate(phantomRooms(snapshot, maze))) : '';
     const room = snapshot && snapshot.room !== null ? capital(rooms[snapshot.room]?.name ?? '') : '';
     drawScene(ctx!, profile, { maze, snapshot, nowMs: now, sight: 2, title: 'Séance Escape', heart, room }, view !== null);
+    const menuView = mode === 'menu' ? menus.view() : null;
+    if (menuView) drawMenu(ctx!, profile, { x: WIDTH / 2 - 230, y: 70, width: 460, height: HEIGHT - 200 }, menuView);
     adapter.drawCaptionBox(ctx!, profile, { x: 40, y: HEIGHT - 110, width: WIDTH - 80, height: 90 });
   }
   requestAnimationFrame(frame);

@@ -148,6 +148,10 @@ function soundChannel(ctx: Context): Channel {
           },
         ];
       }
+      // A lit menu entry: a soft tick, so a highlight moving is heard before its words.
+      if (event.type === EVENT_TYPES.menuOption) {
+        return [{ channel: 'sound', senses: ['hearing'], at: event.at, role: 'effect', hz: 660, wave: 'sine', gain: 0.35 * profile.volume.cues, pan: 0, shape: { hzTo: 720, seconds: 0.06 } }];
+      }
       // A portal is a long rising sweep, unlike any beep, so a change of move is heard before it is said.
       if (event.type === EVENT_TYPES.portal) {
         const move = dataString(event, 'move');
@@ -311,7 +315,8 @@ function indicatorChannel(ctx: Context): Channel {
         event.type === EVENT_TYPES.fallReason ||
         event.type === EVENT_TYPES.judged ||
         event.type === EVENT_TYPES.passed ||
-        event.type === EVENT_TYPES.portal
+        event.type === EVENT_TYPES.portal ||
+        event.type === EVENT_TYPES.menuOption
       ) {
         return marker();
       }
@@ -338,6 +343,7 @@ function hapticsChannel(ctx: Context): Channel {
       if (event.type === EVENT_TYPES.landed) return buzz([30]);
       if (event.type === EVENT_TYPES.fallReason) return buzz([250]);
       if (event.type === EVENT_TYPES.portal) return buzz([40, 40, 40, 40, 120]);
+      if (event.type === EVENT_TYPES.menuOption) return buzz([15]);
       if (event.type === EVENT_TYPES.judged) return gradeOf(event) === 'perfect' ? buzz([30, 30, 30]) : [];
 
       if (event.type !== EVENT_TYPES.beat) return [];
