@@ -18,5 +18,6 @@ jobs:
       - run: npm run build --workspace mcp/level-forge
       - run: npm test
       - run: node scripts/check-claims.mjs
-      # The power is rebuilt by the tests; fail if the committed copy is out of date.
-      - run: git diff --exit-code -- power/marrow
+      # The power is rebuilt by the tests; fail if the committed copy is out of date. The bundled MCP
+      # server is left out: the bundler orders modules differently on Linux and Windows, same code.
+      - run: git diff --exit-code -- power/marrow ':!power/marrow/mcp/level-forge.js'
