@@ -41,6 +41,12 @@ for (const [what, path] of [['starter game', join(starter, 'src', 'main.ts')], [
 mkdirSync(target, { recursive: true });
 cpSync(starter, target, { recursive: true });
 cpSync(runtime, join(target, 'marrow'), { recursive: true });
+// The accessibility advisor: npm run advise -- advise brief.md
+const advisor = join(power, 'mcp', 'advisor.mjs');
+if (existsSync(advisor)) {
+  mkdirSync(join(target, 'tools'), { recursive: true });
+  cpSync(advisor, join(target, 'tools', 'advisor.mjs'));
+}
 
 if (kiro) {
   for (const kind of ['hooks', 'agents']) {
@@ -58,3 +64,4 @@ console.log(`  cd "${target}"`);
 console.log('  npm install');
 console.log('  npm run dev');
 console.log('Then open the address it prints, press any key, and play. Your game is src/main.ts.');
+console.log('Describe your game in brief.md, then  npm run advise -- advise brief.md  for accessibility ideas that fit it.');

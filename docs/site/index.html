@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marrow: games playable with one switch, by sound, by sight and by touch</title>
+    <style>
+      :root { --bg: #14101f; --panel: #241c36; --text: #f4efe6; --muted: #c9c0d8; --line: #9d94b5; --focus: #ffd84d; --link: #ffd27a; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 1.125rem/1.6 "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+      main { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+      h1 { font-size: 2rem; margin: 0.5rem 0; }
+      h2 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+      a { color: var(--link); }
+      :focus-visible { outline: 4px solid var(--focus); outline-offset: 3px; }
+      .game { display: block; padding: 1rem 1.25rem; margin: 1rem 0; background: var(--panel); border: 2px solid var(--line); color: var(--text); text-decoration: none; }
+      .game:hover { border-color: var(--link); }
+      .game p { margin: 0.25rem 0 0; color: var(--muted); }
+      .note { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Marrow</h1>
+      <p>Two games built on Marrow, a kit that makes browser games playable with one switch, by sound, by sight and by touch, and proves every level can be finished before anyone plays it.</p>
+      <p><strong>How to play either game:</strong> press any key, click, tap or gamepad button. That is the only control. Choices are read out one at a time: press when you hear the one you want. Escape comes back to the menu. Headphones help.</p>
+
+      <a class="game" href="ghastly-moves/">
+        <h2>Ghastly Moves</h2>
+        <p>A maths rhythm game. Three beeps, then press on the fourth beat to jump the numbers that fit the rule. Seven songs, flips, number gates and bosses.</p>
+      </a>
+
+      <a class="game" href="seance-escape/">
+        <h2>Séance Escape</h2>
+        <p>Escape a haunted house by sound. Each way out is read from where it lies; a phantom listens for you. Find three relics, ring the bell, run.</p>
+      </a>
+
+      <a class="game" href="hello/">
+        <h2>Hello, Marrow</h2>
+        <p>The smallest Marrow game: four lines of code, with setup, menus, every sense and a proved level.</p>
+      </a>
+
+      <p class="note">Screen-reader users: turn off the built-in voice in each game. Every line is still written for your screen reader. Marrow helps games work for more players; it does not make them "fully accessible", and it does not replace testing with disabled players. Feedback is very welcome.</p>
+      <p class="note">Source, MIT licence: <a href="https://github.com/Taran-Douley/marrow">github.com/Taran-Douley/marrow</a></p>
+    </main>
+  </body>
+</html>

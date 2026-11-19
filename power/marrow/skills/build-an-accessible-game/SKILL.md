@@ -7,6 +7,10 @@ description: Build a browser game on Marrow so it is accessible by default. Use 
 
 Marrow is a small kit. You describe what happens in the game (events) and what is in it (objects). The kit shows every event through sound, speech, captions, a marker for every sound, and touch, according to one player profile. A property-based proof checks that levels can be finished with one switch. **Accessibility is the default. Never ask the developer whether they want it, and never add it by hand.**
 
+## First: a brief, and a plan that fits the game
+
+Before building, ask the developer what the game is: genre, world and mood (theme), controls, engine, who it is for, and its features. Write it as `brief.md` (`node <power>/mcp/advisor.mjs new brief.md` gives a template). Then run `node <power>/mcp/advisor.mjs advise brief.md`, or the `advise_game` MCP tool for any engine. It writes `accessibility-plan.md`: suggestions across the whole game, in the theme's sounds, each saying what Marrow builds and what is for the game's own code. The developer ticks `[x]`, rejects `[-]` and adds notes; the accessibility-designer agent talks it through. When the game changes, update the brief and run `advise` again: decisions are kept. `advise build` builds what was accepted into `src/accessibility.generated.ts`; pass `ACCESSIBILITY.kit` to `createKit` or `createGame`. Check with the proof and the `quality_report` tool. Never tick a box the developer did not agree to.
+
 ## The shortest route: one call
 
 ```ts

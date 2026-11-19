@@ -18,6 +18,7 @@ import {
   type ReviewerSpec,
   type Speed,
 } from '@marrow/skeleton';
+import { BriefError, PALETTES, THEMES, advise, paletteProof, parseBrief, parsePlan, planMarkdown, qualityReport, type Theme } from '@marrow/skeleton/advisor';
 import { ArgumentError, buildKit, numberArg, type GameConfig } from './game';
 
 // The tools. Each takes plain JSON and returns plain words first, then the data. Nothing here
@@ -398,6 +399,77 @@ const a11yReportTool: Tool = {
 const round = (n: number): number => Math.round(n * 1000) / 1000;
 const pct = (n: number): number => Math.round(n * 1000) / 10;
 
+// ---- the advisor: for any game, in any engine --------------------------------------------------
+
+const textArg = (value: unknown, name: string): string => {
+  if (typeof value !== 'string' || value.trim() === '') throw new ArgumentError(`'${name}' must be text.`);
+  if (value.length > 50_000) throw new ArgumentError(`'${name}' is too long (50,000 characters at most).`);
+  return value;
+};
+
+const adviseGameTool: Tool = {
+  name: 'advise_game',
+  description:
+    'Suggest accessibility features for a game, in any engine, that fit its genre, theme and features. Give the brief (plain lines: Name, Genre, Theme, Controls, Engine, Players, and a Features list). Give the current plan (Markdown) too, and every decision and note in it is kept: new suggestions are marked new, and accepted ones that no longer fit are kept and marked. Returns the plan as Markdown, and what Marrow builds versus what the game must do by hand.',
+  inputSchema: {
+    type: 'object',
+    properties: { brief: { type: 'string' }, plan: { type: 'string', description: 'The current accessibility-plan.md, to keep its decisions.' } },
+    required: ['brief'],
+  },
+  run(args) {
+    let brief;
+    try {
+      brief = parseBrief(textArg(args.brief, 'brief'));
+    } catch (error) {
+      if (error instanceof BriefError) throw new ArgumentError(error.message);
+      throw error;
+    }
+    const previous = args.plan === undefined ? undefined : parsePlan(textArg(args.plan, 'plan'), brief);
+    const plan = advise(brief, previous);
+    const kinds = { 'built-in': 0, 'from-plan': 0, 'by-hand': 0 };
+    for (const i of plan.items) kinds[i.how.kind] += 1;
+    const text =
+      `${brief.name} (${brief.genre}, ${brief.theme}): ${plan.items.length} suggestions. ` +
+      `${kinds['built-in']} are built into Marrow, ${kinds['from-plan']} Marrow builds from the plan, ${kinds['by-hand']} are for the game's own code.` +
+      (plan.items.some((i) => i.isNew) ? ` New: ${plan.items.filter((i) => i.isNew).map((i) => i.id).join(', ')}.` : '') +
+      (plan.items.some((i) => i.noLongerFits) ? ` No longer fit (kept): ${plan.items.filter((i) => i.noLongerFits).map((i) => i.id).join(', ')}.` : '');
+    return { text, data: { markdown: planMarkdown(plan), items: plan.items.map((i) => ({ id: i.id, area: i.area, title: i.title, esa: i.esa, how: i.how.kind, decision: i.decision, isNew: i.isNew, noLongerFits: i.noLongerFits })) } };
+  },
+};
+
+const soundPaletteTool: Tool = {
+  name: 'sound_palette',
+  description: `The sounds that fit a theme (${THEMES.join(', ')}): two countdown cues, steps, a reward, danger, a menu tick, a fall and an ambience, each with words and a synthesis recipe. Every palette passes a proof: the cues differ in pitch and timbre and stay above the music.`,
+  inputSchema: { type: 'object', properties: { theme: { enum: [...THEMES] } }, required: ['theme'] },
+  run(args) {
+    const theme = args.theme as Theme;
+    if (!THEMES.includes(theme)) throw new ArgumentError(`'theme' must be one of: ${THEMES.join(', ')}.`);
+    const p = PALETTES[theme];
+    const proof = paletteProof(p);
+    return {
+      text: `${theme}: ${p.mood}\n${Object.entries(p.sounds).map(([role, s]) => `${role}: ${s.words}`).join('\n')}\nPalette proof: ${proof.pass ? 'passed' : proof.counterexample}`,
+      data: { palette: p, proof },
+    };
+  },
+};
+
+const qualityReportTool: Tool = {
+  name: 'quality_report',
+  description:
+    'How a game plays, from proofs and simulated players: levels proved; jumps cleared first time with 150 and 250 ms of timing error and by sound only; levels finished clean; a verdict per speed; the longest wait; whether speech can be followed; and the change that would help most. It shows whether a game can be finished and how it plays, not whether it is fun.',
+  inputSchema: { type: 'object', properties: { from: { type: 'integer', minimum: 0 }, count: { type: 'integer', minimum: 1, maximum: 100 }, game: gameSchema } },
+  run(args) {
+    const kit = buildKit(asGame(args));
+    const from = args.from === undefined ? 1 : seedOf(args.from, 'from');
+    const count = args.count === undefined ? 20 : numberArg(args.count, 'count', { integer: true, min: 1, max: 100 });
+    const r = qualityReport(kit, Array.from({ length: count }, (_, i) => kit.generate(from + i)));
+    return {
+      text: `${r.proved} of ${r.levels} levels proved. Slow ${r.bySpeed.slow.verdict}, Medium ${r.bySpeed.medium.verdict}, Fast ${r.bySpeed.fast.verdict}.\n${r.advice.join('\n')}`,
+      data: { markdown: r.markdown, bySpeed: r.bySpeed, longestQuietSeconds: r.longestQuietSeconds, speechFollowable: r.speechFollowable },
+    };
+  },
+};
+
 export const TOOLS: readonly Tool[] = [
   generateLevelTool,
   proveLevelTool,
@@ -406,4 +478,7 @@ export const TOOLS: readonly Tool[] = [
   reviewLevelTool,
   a11yReportTool,
   proveHouseTool,
+  adviseGameTool,
+  soundPaletteTool,
+  qualityReportTool,
 ];

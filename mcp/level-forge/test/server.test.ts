@@ -27,7 +27,7 @@ describe('the protocol', () => {
 
   it('lists every tool with a description and a schema', () => {
     const tools = (handle({ jsonrpc: '2.0', id: 4, method: 'tools/list' })!.result as { tools: { name: string; description: string; inputSchema: { type: string } }[] }).tools;
-    expect(tools.map((t) => t.name)).toEqual(['generate_level', 'prove_level', 'prove_many', 'simulate_persona', 'review_level', 'a11y_report', 'prove_house']);
+    expect(tools.map((t) => t.name)).toEqual(['generate_level', 'prove_level', 'prove_many', 'simulate_persona', 'review_level', 'a11y_report', 'prove_house', 'advise_game', 'sound_palette', 'quality_report']);
     for (const t of tools) {
       expect(t.description.length).toBeGreaterThan(40);
       expect(t.inputSchema.type).toBe('object');
@@ -52,7 +52,7 @@ describe('the protocol', () => {
     expect(replies).toHaveLength(3);
     expect(replies[0]).toMatchObject({ id: 1, result: {} });
     expect(replies[1]!.error?.code).toBe(-32700);
-    expect((replies[2]!.result as { tools: unknown[] }).tools).toHaveLength(7);
+    expect((replies[2]!.result as { tools: unknown[] }).tools).toHaveLength(10);
   });
 });
 
@@ -214,5 +214,25 @@ describe('a11y_report', () => {
     const r = call('a11y_report', { levels: 5, game: { obstacles: [{ name: 'wall', width: [1.5, 1.5] }] } });
     expect(r.data.supported.map((e: { tag: string }) => e.tag)).not.toContain('Playable with Keyboard Only');
     expect(r.text).toMatch(/Failing proof properties/);
+  });
+});
+describe('the advisor tools', () => {
+  const brief = 'Name: Star Hopper\nGenre: platformer\nTheme: space\nEngine: Godot\nFeatures:\n- a boss\n- coins';
+  it('advise_game: suggestions for any engine, in the theme, with what is by hand', () => {
+    const r = call('advise_game', { brief });
+    expect(r.isError).toBe(false);
+    expect(r.text).toMatch(/^Star Hopper \(platformer, space\): \d+ suggestions\. 0 are built into Marrow/);
+    expect(r.data.markdown).toMatch(/a falling alarm sweep/);
+    const again = call('advise_game', { brief: brief.replace('- a boss\n', ''), plan: r.data.markdown.replace(/- \[ \] `boss-warning`/, '- [x] `boss-warning`') });
+    expect(again.text).toMatch(/No longer fit \(kept\): boss-warning/);
+  });
+  it('advise_game: a brief with no name is refused in plain words', () => {
+    const r = call('advise_game', { brief: 'Genre: runner' });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/needs a name/);
+  });
+  it('sound_palette and quality_report', () => {
+    expect(call('sound_palette', { theme: 'forest' }).text).toMatch(/a bird call[\s\S]*Palette proof: passed/);
+    expect(call('quality_report', { count: 5 }).text).toMatch(/^5 of 5 levels proved\. Slow good/);
   });
 });

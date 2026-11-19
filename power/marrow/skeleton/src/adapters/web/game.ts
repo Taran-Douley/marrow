@@ -28,6 +28,8 @@ export interface GameOptions {
   mount?: HTMLElement;
   /** The level to play. Default: a new one each time. */
   seed?: number | (() => number);
+  /** Timing help on for a new player (they can still switch it off). Default off. */
+  assist?: boolean;
 }
 
 export interface Game {
@@ -121,10 +123,21 @@ export function createGame(options: GameOptions): Game {
     dwellMs: () => profile.dwellMs,
     say: (lit, opening) => announce(EVENT_TYPES.menuOption, { label: opening ? `${opening} ${lit.label}` : lit.label }),
   });
+  // Timing help: a press anywhere in the countdown counts. The player's choice is saved; the game sets the start.
+  const ASSIST_KEY = 'marrow.assist';
+  const storedAssist = ((): string | null => {
+    try {
+      return localStorage.getItem(ASSIST_KEY);
+    } catch {
+      return null;
+    }
+  })();
+  let assist = storedAssist === null ? options.assist === true : storedAssist === 'on';
   const main = {
     title: options.title,
     entries: [
       { kind: 'action' as const, id: 'play', label: 'Play' },
+      { kind: 'setting' as const, id: 'assist', name: 'Timing help', choices: [{ label: 'Off' }, { label: 'On, press any time in the countdown' }], current: () => (assist ? 1 : 0) },
       { kind: 'action' as const, id: 'settings', label: 'Settings' },
     ],
   };
@@ -151,7 +164,7 @@ export function createGame(options: GameOptions): Game {
     el.status.textContent = `Level ${seed}: passed all ${proof.length} proof properties, so it can be finished with one switch.`;
     adapter.cancelPending({ silence: true });
     mode = 'playing';
-    run = kit.run({ level, speed: profile.speed, startReal: performance.now(), emit, coachLeadMs: profile.coachLeadMs });
+    run = kit.run({ level, speed: profile.speed, startReal: performance.now(), emit, coachLeadMs: profile.coachLeadMs, assist });
     announce('intro');
   }
 
@@ -168,6 +181,15 @@ export function createGame(options: GameOptions): Game {
     }
     const r = menus.press(now);
     if (!r) return;
+    if (r.kind === 'changed' && r.id === 'assist') {
+      assist = r.choice === 1;
+      try {
+        localStorage.setItem(ASSIST_KEY, assist ? 'on' : 'off');
+      } catch {
+        // not saved: it still applies for this visit
+      }
+      return;
+    }
     if (r.kind === 'changed') return setProfile(applySetting(profile, r.id, r.choice));
     if (r.id === 'play') {
       menus.close();

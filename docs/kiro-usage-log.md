@@ -345,3 +345,17 @@ The flow is now: clone, then `npm run setup`, and both games open. Then ask Kiro
 - **Public API check** (`scripts/check-imports.mjs`). It runs in CI, in `npm test` (Level Forge) and in setup. It names the file and line of any import that reaches inside the kit.
 - README rewritten, top first: the pitch, 3 quickstart commands, the example, what you get for free, then the Kiro power as the second route.
 - Not tested here: setup actually starting the two dev servers and opening a browser. The person running the project does that.
+
+## The accessibility advisor (spec marrow-advisor, tasks 1 to 9)
+
+A second spec, written before any code: `.kiro/specs/marrow-advisor/` (requirements A1 to A7, design, tasks).
+
+- **What it does.** A developer describes the game in `brief.md`: genre, theme, controls, engine, players and features. Marrow suggests accessibility features for the whole game, in its theme's sounds. The developer accepts or rejects each one, and the plan follows the game as it changes, keeping their decisions. Marrow builds what was agreed, and the bots report how it plays.
+- **Rules, not guesses.** There are 33 rules across 8 areas, each with a guideline (Game Accessibility Guidelines, Xbox Accessibility Guidelines, WCAG). They read the genre and words in the features: "boss", "timer", "dialogue", "coins", "chat", and more. Every suggestion says whether Marrow has it built in, builds it from the plan, or leaves it to the game's own code. A test checks that no suggestion names a disability or says "fully accessible".
+- **Palettes.** Haunted, space, forest, underwater and neutral, with words and a synthesised recipe for 8 roles each. Property 301 proves the two cues differ in pitch and timbre and stay above the music.
+- **The plan** is Markdown: `[x]`, `[-]` and `[ ]` with notes. It round-trips (property-tested on 100 random sets of decisions). When the brief changes, new ideas are marked new, and accepted ideas that no longer fit are kept and marked.
+- **Build.** `advise build` writes `src/accessibility.generated.ts` with a kit patch (palette cues, jump, landing and fall sounds, the coach, defaults) and a to-do list. `examples/hello` uses it. A kit built from a plan passes every proof the plain kit passes.
+- **Quality report.** Proofs plus bots with 150 and 250 ms of timing error and by sound only. It gives a verdict per speed, the longest wait, speech pace, and the change that would help most. `docs/quality-ghastly-moves.md` is the first real finding: Slow is good on every stage, Fast is too hard for a 250 ms player, and waits run up to 17 s at Slow in rests and after portals.
+- **Kiro.** The accessibility-designer agent talks the plan through and ticks only what is agreed. The advise-on-brief hook remakes plans when a brief is saved. MCP tools `advise_game`, `sound_palette` and `quality_report` serve any engine. The power ships the advisor as `mcp/advisor.mjs`, and `new-game` adds a brief and `npm run advise` to the starter.
+- **Both games have a brief and a plan**, with decisions recorded the way their developer would make them: Ghastly Moves keeps its own sounds instead of the palette, and S�ance Escape's sound guide and hints are marked done.
+- Not tried yet: a developer other than the author using it on a new game.

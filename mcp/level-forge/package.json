@@ -7,7 +7,7 @@
   "type": "module",
   "bin": { "level-forge": "dist/main.js" },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build --mode advisor",
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
