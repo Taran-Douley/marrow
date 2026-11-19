@@ -49,6 +49,17 @@ A hook (`.kiro/hooks/wire-new-object.json`) then puts it in the game, its tests 
 
 In another project, install the power from `power/marrow/`. Its skill builds games on Marrow, and `new-game.mjs` makes a starter game ([docs/quickstart.md](docs/quickstart.md)). The power also brings the Level Forge MCP server (generate, prove, simulate players, review) and the hook and agent templates.
 
+## The advisor: a plan that fits your game
+
+Describe your game in a few lines (`brief.md`: genre, theme, controls, engine, features). Marrow suggests accessibility features across the whole game, in your theme's own sounds: a haunted house gets a church bell and a creaking board, a space game a sonar ping. You accept or reject each one, alone or with the accessibility-designer agent. When the game changes, the plan follows and keeps your decisions. Marrow then builds what you agreed, and bot players check it can be finished and plays well.
+
+```sh
+npm run advise -- advise apps/ghastly-moves/brief.md   # the plan, next to the brief
+npm run advise -- build examples/hello/brief.md        # build what was accepted
+```
+
+It works for any engine as a plan, through the `advise_game` MCP tool. See [docs/advisor.md](docs/advisor.md).
+
 ## The two games
 
 Built for Kiroween 2026, Skeleton Crew: one skeleton, two very different games.

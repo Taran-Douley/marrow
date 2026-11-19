@@ -4,14 +4,14 @@
 //
 //   node scripts/check-imports.mjs
 //
-// Allowed: '@marrow/skeleton', '@marrow/skeleton/web', '@marrow/skeleton/vite', '@marrow/skeleton/catalogue'.
+// Allowed: '@marrow/skeleton', '@marrow/skeleton/web', '@marrow/skeleton/vite', '@marrow/skeleton/catalogue', '@marrow/skeleton/advisor'.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PUBLIC = new Set(['@marrow/skeleton', '@marrow/skeleton/web', '@marrow/skeleton/vite', '@marrow/skeleton/catalogue']);
+const PUBLIC = new Set(['@marrow/skeleton', '@marrow/skeleton/web', '@marrow/skeleton/vite', '@marrow/skeleton/catalogue', '@marrow/skeleton/advisor']);
 const skeleton = join(root, 'skeleton') + sep;
 
 const folders = ['apps', 'examples']
@@ -41,7 +41,7 @@ for (const file of files) {
         const spec = m[1] ?? m[2];
         const where = `${relative(root, file)}:${i + 1}`;
         if (spec.startsWith('@marrow/skeleton') && !PUBLIC.has(spec)) {
-          problems.push(`${where} imports '${spec}'. Use '@marrow/skeleton' (or /web, /vite, /catalogue) instead.`);
+          problems.push(`${where} imports '${spec}'. Use '@marrow/skeleton' (or /web, /vite, /catalogue, /advisor) instead.`);
         } else if (spec.startsWith('.') && resolve(dirname(file), spec).startsWith(skeleton)) {
           problems.push(`${where} reaches into the kit with '${spec}'. Import it from '@marrow/skeleton' instead.`);
         }

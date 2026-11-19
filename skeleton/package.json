@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./web": "./src/adapters/web/index.ts",
     "./vite": "./src/adapters/web/vite-plugin.ts",
-    "./catalogue": "./src/catalogue/index.ts"
+    "./catalogue": "./src/catalogue/index.ts",
+    "./advisor": "./src/advisor/index.ts"
   },
   "scripts": {
     "test": "vitest run",

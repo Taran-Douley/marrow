@@ -80,6 +80,9 @@ describe('the power (Agent Plugins 1.0)', () => {
       'review_level',
       'a11y_report',
       'prove_house',
+      'advise_game',
+      'sound_palette',
+      'quality_report',
     ]);
     expect(replies[2].result.content[0].text).toMatch(/^Level 5 passes all/);
   });
@@ -149,7 +152,7 @@ function checkHookFile(path: string): void {
 describe('the hooks', () => {
   it('this repository\u2019s hooks and the power\u2019s templates follow the v1 format', () => {
     const repoHooks = readdirSync(join(root, '.kiro', 'hooks')).filter((f) => f.endsWith('.json'));
-    expect(repoHooks.sort()).toEqual(['core-change-tests.json', 'no-fully-accessible.json', 'proof-on-object-save.json', 'store-list-report.json', 'usage-log-after-task.json', 'wire-new-object.json']);
+    expect(repoHooks.sort()).toEqual(['core-change-tests.json', 'no-fully-accessible.json', 'proof-on-object-save.json', 'store-list-report.json', 'usage-log-after-task.json', 'wire-new-object.json'].concat('advise-on-brief.json').sort());
     for (const f of repoHooks) checkHookFile(join(root, '.kiro', 'hooks', f));
     for (const f of readdirSync(join(power, 'templates', 'hooks'))) checkHookFile(join(power, 'templates', 'hooks', f));
   });
@@ -181,7 +184,7 @@ describe('the hooks', () => {
 });
 
 describe('the agents', () => {
-  const names = ['accessibility-reviewer', 'level-designer', 'playtester'];
+  const names = ['accessibility-designer', 'accessibility-reviewer', 'level-designer', 'playtester'];
 
   it('are Markdown with front matter and a real prompt, in the repository and in the power', () => {
     for (const dir of [join(root, '.kiro', 'agents'), join(power, 'templates', 'agents')]) {
