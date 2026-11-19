@@ -10,7 +10,7 @@ cd marrow
 npm run setup
 ```
 
-`npm run setup` checks your Node version, installs, builds, and opens both games in your browser. If anything goes wrong, it says what to do.
+`npm run setup` checks your Node version, installs, builds, and opens both games in your browser. If anything goes wrong, it says what to do. After that, `npm run play` starts both games straight from the newest code, with live reload. The games are also online at [taran-douley.github.io/marrow](https://taran-douley.github.io/marrow/), rebuilt on every merge to main.
 
 ## A whole game in 4 lines
 

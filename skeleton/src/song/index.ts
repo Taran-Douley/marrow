@@ -100,12 +100,13 @@ export function generateSong(seed: number, song: Song, options: SongOptions): Le
     t = to;
     const here: Move = part.move ?? move;
     sections.push({ name: part.name, from, to, feel: part.feel, energy: part.energy ?? DEFAULT_ENERGY[part.feel], move: here });
-    // A new move is announced at the start of the part, and nothing counts down for two bars, so the
-    // portal's words are finished before the first countdown in the new move (property 16 asks for one).
+    // A new move is announced at the start of the part, and nothing counts down for a bar (property 16).
+    // A game that speaks the portal holds the run until its words are done (run.holdForWords), so the
+    // wait is only as long as the words at each speed, not two bars at every speed.
     let lead = 0;
     if (here !== move) {
       portals.push({ at: from, move: here });
-      lead = 2 * bar;
+      lead = bar;
       move = here;
     }
     if (part.feel === 'rest') continue;

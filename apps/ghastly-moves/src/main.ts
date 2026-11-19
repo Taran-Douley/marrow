@@ -199,6 +199,8 @@ function emit(event: SemanticEvent, now: number): void {
     // The reason and the lesson are heard in full before the countdown comes back.
     run?.holdForWords(performance.now(), wordsMs(event));
   }
+  // A new move: its words are heard in full before the first countdown in it, and no longer than that.
+  if (event.type === EVENT_TYPES.portal) run?.holdForWords(performance.now() + Math.max(0, ((event.at - now) / rate()) * 1000), wordsMs(event));
   if (boss && stage) bossReacts(event, now);
   // A word above the ghost, so the judgement is seen as well as heard. It is shown still, never flashed.
   if (event.type === EVENT_TYPES.judged) {
