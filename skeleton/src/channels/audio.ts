@@ -212,11 +212,24 @@ export function worldSound(
     }
     case EVENT_TYPES.jumped:
       // A whoosh the moment you press: the player must hear that the press worked.
-      return options.effects
-        ? withRecipe('jumped', sound('effect', 0, 'sine', 0.7 * cues, 0, { noise: true, filterHz: 500, filterTo: 3000, seconds: 0.28 }))
-        : [];
+      if (!options.effects) return [];
+      // With a track, a soft pluck in the song's key rides on the whoosh, so a jump is part of the music.
+      return [
+        ...withRecipe('jumped', sound('effect', 0, 'sine', 0.7 * cues, 0, { noise: true, filterHz: 500, filterTo: 3000, seconds: 0.28 })),
+        ...(options.track && !options.recipes.jumped
+          ? [sound('effect', options.track.rootHz * 2, 'triangle', 0.3 * cues, 0, { voice: 'pluck', filterHz: 2400, seconds: 0.35 })]
+          : []),
+      ];
     case EVENT_TYPES.landed:
-      return options.effects ? withRecipe('landed', sound('effect', 95, 'sine', 0.6 * cues, 0, { hzTo: 45, seconds: 0.2 })) : [];
+      // With a track, the landing is the song's own low note, so it never clashes with the tune.
+      return options.effects
+        ? withRecipe(
+            'landed',
+            options.track
+              ? sound('effect', options.track.rootHz, 'sine', 0.6 * cues, 0, { hzTo: options.track.rootHz / 2, voice: 'sub', seconds: 0.22 })
+              : sound('effect', 95, 'sine', 0.6 * cues, 0, { hzTo: 45, seconds: 0.2 }),
+          )
+        : [];
     case EVENT_TYPES.judged: {
       if (!options.effects) return [];
       // Each right decision in a row climbs one step of a pentatonic scale, so a streak is a tune you build.
@@ -287,6 +300,8 @@ export function worldSound(
             quiet,
             offset: dataNumber(event, 'pulse') ?? 0,
             ...(dataNumber(event, 'energy') !== undefined ? { energy: clamp01(dataNumber(event, 'energy')!) } : {}),
+            ...(dataNumber(event, 'streak') !== undefined ? { streak: dataNumber(event, 'streak')! } : {}),
+            ...(dataNumber(event, 'phase') !== undefined ? { phase: dataNumber(event, 'phase')! } : {}),
           }),
         );
       }

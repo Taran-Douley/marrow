@@ -122,6 +122,10 @@ export interface WebAdapter {
   poll(): void;
   /** Browsers allow sound only after a gesture: call this from the first press. */
   unlock(): void;
+  /** Muffle the music with a low-pass (after a fall), or open it up again. Only the music: cues and speech stay clear. */
+  muffleMusic(on: boolean): void;
+  /** Duck the music while a line is spoken (call each frame with `speaking()`; it only acts when the answer changes). */
+  duckMusic(on: boolean): void;
   loadProfile(): Profile | null;
   saveProfile(profile: Profile): void;
   osPreferences(): OsPreferences;
@@ -238,6 +242,7 @@ export function createWebAdapter(options: WebAdapterOptions): WebAdapter {
   };
 
   let unbind: (() => void) | undefined;
+  let ducking = false;
 
   return {
     perform(commands, timing, profile) {
@@ -299,6 +304,12 @@ export function createWebAdapter(options: WebAdapterOptions): WebAdapter {
     },
     poll: () => poller.poll(),
     unlock: () => getAudio()?.unlock(),
+    muffleMusic: (on) => getAudio()?.muffle(on),
+    duckMusic(on) {
+      if (on === ducking) return;
+      ducking = on;
+      audio?.duck(on);
+    },
     loadProfile: () => store.load(),
     saveProfile: (profile) => store.save(profile),
     osPreferences() {

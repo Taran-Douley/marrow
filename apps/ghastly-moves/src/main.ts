@@ -135,6 +135,8 @@ const clipBase = new URLSearchParams(location.search).get('clips');
 const adapter = createWebAdapter({
   region: element('announcements'),
   voice: { browser: browserVoice, ...(clipBase ? { clips: clipsBySlug(clipBase) } : {}) },
+  // The band is several notes at once (string, keys, pad, bass, drums, bed), so it needs more voices than the default.
+  sound: { maxVoices: 40 },
 });
 
 let profile: Profile = adapter.withOsPreferences(adapter.loadProfile() ?? kit.newProfile());
@@ -254,9 +256,11 @@ const rate = (): number => kit.timing.rates[profile.speed];
 
 /** Send one event through the channels to the player. `now` is level time in running seconds. */
 function emit(event: SemanticEvent, now: number): void {
-  adapter.perform(kit.render(event, profile), { now, rate: rate() }, profile);
+  adapter.perform(kit.render(withBand(event), profile), { now, rate: rate() }, profile);
   if (event.type === EVENT_TYPES.fallReason) {
     falling = true;
+    // A fall muffles the music for a moment: it opens up again when play resumes (onRestart).
+    adapter.muffleMusic(true);
     // The first fall at an obstacle: the reason and the lesson are heard in full before the countdown
     // comes back, so that retry may wait for the words. A repeat fall says only the short reason and the
     // attempt, and play does not wait for them (property 20).
@@ -270,6 +274,17 @@ function emit(event: SemanticEvent, now: number): void {
     const grade = String(event.data?.grade ?? '');
     popup = { text: grade === 'perfect' ? 'Perfect!' : grade === 'good' ? 'Good' : 'Ok', at: performance.now() };
   }
+}
+
+/**
+ * Tell the band how the run is going on each bar's atmosphere event: the streak (the music builds with it)
+ * and, in a boss fight, the phase (1 once the boss is down to half: the key lifts and the drums get busier,
+ * on the same grid, so no press moves).
+ */
+function withBand(event: SemanticEvent): SemanticEvent {
+  if (event.type !== EVENT_TYPES.atmosphere) return event;
+  const phase = boss && boss.max > 0 && boss.health * 2 <= boss.max ? 1 : 0;
+  return { ...event, data: { ...event.data, streak: lastSnapshot?.streak ?? 0, phase } };
 }
 
 // ---- the boss fight ----------------------------------------------------------
@@ -368,6 +383,7 @@ function start(what: Kind): void {
     throw error;
   }
   adapter.cancelPending({ silence: true });
+  adapter.muffleMusic(false);
   adapter.visual.reset();
   musicKit = null; // the level brings its own music; the map's tune starts again afterwards
   falling = false;
@@ -396,6 +412,7 @@ function start(what: Kind): void {
     },
     onRestart: (levelTime: number) => {
       adapter.cancelPending(); // sounds scheduled for the old try no longer apply
+      adapter.muffleMusic(false); // play resumes: the music opens up again
       falling = false;
       // A tell already heard is not told again: the next one is the first that is still ahead.
       const ahead = tells.findIndex((x) => x.at >= levelTime - 1e-9);
@@ -708,6 +725,7 @@ function sendTells(t: number): void {
 
 function frame(): void {
   adapter.poll();
+  adapter.duckMusic(adapter.speaking()); // the music steps back while a line is spoken
   const now = performance.now();
   if (run && mode === 'playing') {
     run.advance(now);
