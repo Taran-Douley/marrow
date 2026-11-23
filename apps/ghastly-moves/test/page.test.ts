@@ -471,9 +471,9 @@ describe('the story', () => {
     page.key('Space', ' ');
     page.frames(6000);
     const tones = page.contexts[0]!.tones;
-    // Stage 3 is in the key of 123 Hz: its pad root is 123 and its bass is an octave under it.
-    expect(tones).toContain(123);
-    expect(tones.some((hz) => Math.abs(hz - 61.5) < 0.01)).toBe(true);
+    // Stage 3 is in the key of 117 Hz (B-flat): its pad root is 117 and its bass is an octave under it.
+    expect(tones).toContain(117);
+    expect(tones.some((hz) => Math.abs(hz - 58.5) < 0.01)).toBe(true);
     // Nothing from the music reaches the beeps' range.
     const music = tones.filter((hz) => hz < 264);
     expect(music.length).toBeGreaterThan(2);

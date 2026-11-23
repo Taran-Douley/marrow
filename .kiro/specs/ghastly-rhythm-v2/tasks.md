@@ -31,3 +31,15 @@ Stage 1 has no portals by design: it teaches the beat. Portals already exist per
 - [x] 17. The Pumpkin King designed and drawn, with poses tied to the tells, and the arena (`src/king.ts`; design note in design.md).
 - [ ] 18. Later: bring-your-own licensed tracks per stage (beat map, preservesPitch, cues above, offline cache, licence file). See design.md. Not built.
 - [ ] 19. Play Stage 1 and tune: colours, the King's proportions, the mix. Stages 2 to 7 follow after the user plays it.
+
+## Stages 2 to 4 redo
+
+- [x] 20. Stage 2, Crypt Steps and the Bone Warden: art (`src/places/crypt.ts`), boss (`src/bosses/bone-warden.ts`), swing-jazz track and heavier boss version (`src/music/crypt.ts`). Not tried by ear or by a player.
+- [x] 21. Stage 3, Whispering Woods and the Moss Witch: art (`src/places/woods.ts`), boss (`src/bosses/moss-witch.ts`), lo-fi track and heavier boss version (`src/music/woods.ts`). Not tried by ear or by a player.
+- [x] 22. Stage 4, The Old Gate and the Gatekeeper: art (`src/places/gate.ts`), boss (`src/bosses/gatekeeper.ts`), dark-march track and heavier boss version (`src/music/gate.ts`). Not tried by ear or by a player.
+
+## Stages 5 to 7 redo
+
+- [x] 23. Stage 5, Haunted Mill and the Spider Miller: art (`src/places/mill.ts`), boss (`src/bosses/spider-miller.ts`), electro-swing track and heavier boss version (`src/music/mill.ts`). Not tried by ear or by a player.
+- [x] 24. Stage 6, The Hollow and the Hollow Wraith: art (`src/places/hollow.ts`), boss (`src/bosses/hollow-wraith.ts`), trip-hop track and heavier boss version (`src/music/hollow.ts`). Not tried by ear or by a player.
+- [x] 25. Stage 7, Midnight Manor and Count Vexar: art (`src/places/manor.ts`), boss (`src/bosses/count-vexar.ts`), gothic-waltz track and heavier boss version (`src/music/manor.ts`). Not tried by ear or by a player.

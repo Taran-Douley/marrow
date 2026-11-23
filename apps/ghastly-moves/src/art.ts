@@ -1,6 +1,8 @@
 import { PULSE_MAX_ALPHA } from '@marrow/skeleton';
 import type { Scenery } from './stages';
 import { drawPatchLayers, drawPatchSky, drawPatchPath } from './patch';
+import { drawStages24Ground, drawStages24Layers, drawStages24Sky } from './places/stages-2-4';
+import { drawStages57Ground, drawStages57Layers, drawStages57Sky } from './places/stages-5-7';
 
 // The look of the game, all drawn in code with canvas shapes. A gradient night sky, a moon with a soft
 // glow, layers of silhouettes that drift at different speeds (parallax), a ground with texture, a ghost
@@ -199,6 +201,8 @@ export interface ArtState {
 
 /** The night sky: a gradient, a few still stars, and the moon with its glow. */
 export function drawSky(ctx: CanvasRenderingContext2D, s: ArtState): void {
+  if (drawStages24Sky(ctx, s)) return;
+  if (drawStages57Sky(ctx, s)) return;
   if (s.scenery === 'patch' && !s.flat) {
     drawPatchSky(ctx, s);
     return;
@@ -386,6 +390,8 @@ function tile(offset: number, period: number, draw: (shift: number) => void): vo
 /** Silhouette layers in three depths. They drift at different speeds, and stand still when motion is reduced. */
 export function drawLayers(ctx: CanvasRenderingContext2D, s: ArtState): void {
   if (s.flat) return;
+  if (drawStages24Layers(ctx, s)) return;
+  if (drawStages57Layers(ctx, s)) return;
   if (s.scenery === 'patch') {
     drawPatchLayers(ctx, s);
     return;
@@ -433,6 +439,8 @@ export function drawLayers(ctx: CanvasRenderingContext2D, s: ArtState): void {
 
 /** The ground: a soft gradient, the line you run on, and tufts that move with the obstacles. */
 export function drawGround(ctx: CanvasRenderingContext2D, s: ArtState, colours: { panel: string; line: string }): void {
+  if (drawStages24Ground(ctx, s, colours)) return;
+  if (drawStages57Ground(ctx, s, colours)) return;
   const gy = s.groundY;
   const dirt = !s.flat && s.scenery === 'patch';
   if (dirt) drawPatchPath(ctx, s);
