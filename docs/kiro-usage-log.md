@@ -417,3 +417,15 @@ A second spec, written before any code: `.kiro/specs/marrow-advisor/` (requireme
 - **Work.** Finished a half-done music engine (it typechecked and passed from the start), then drew the Pumpkin Patch in layers (`patch.ts`), designed and drew the Pumpkin King with poses tied to the song's tells (`king.ts`), reworked the stone and the ghost, and wrote the design note and the later bring-your-own-tracks note.
 - **Check.** Screens were rendered by a temporary page in headless Edge calling the real `drawScene`; the page was removed afterwards. Pictures in `private/screens/`.
 - **Limits.** Nothing here has been heard or played by a person.
+
+## 2026-11-23 - Ghastly Moves stages 2 to 4 redo (branch stages-redo)
+
+- **Work.** Wrote the design notes first, then drew Crypt Steps, Whispering Woods and The Old Gate in layers (`src/places/`), designed and drew the Bone Warden, the Moss Witch and the Gatekeeper with poses tied to the song's tells (`src/bosses/`), and wrote a swing-jazz, a lo-fi and a dark-march track, each with a heavier boss version and a phase change (`src/music/`). Shared files got only small edits: dispatch lines in `art.ts`, `scene.ts`, `boss.ts` and the track registry in `tracks.ts`; one test key updated (stage 3 is now 117 Hz).
+- **Check.** Screens were rendered by a temporary page in headless Edge; the page was removed afterwards. Pictures in `private/screens/`. Ghastly Moves tests, skeleton tests, the build and the import check pass.
+- **Limits.** Nothing here has been heard or played by a person.
+
+## 2026-11-23 - Ghastly Moves stages 5 to 7 redo (branch stages-redo)
+
+- **Work.** Design notes first (design.md), then the art of Haunted Mill, The Hollow and Midnight Manor in six layers each (`src/places/{mill,hollow,manor}.ts`, dispatch `places/stages-5-7.ts`), the Spider Miller, the Hollow Wraith and Count Vexar with poses tied to the tells (`src/bosses/`), and electro-swing, trip-hop and gothic-waltz tracks with heavier boss versions (`src/music/`). Done alongside a second worker on stages 2 to 4; shared files took only one-line dispatch entries.
+- **Check.** Screens rendered by a temporary page in headless Edge (removed afterwards), pictures in `private/screens/stage5-7-*.png`; two glitches fixed after looking (a grey bar across the Hollow's moon, a spiky doorway). App tests, skeleton tests, build and the public-API check pass.
+- **Limits.** Nothing here has been heard or played by a person. The waltz is laid in three-slot measures across the 4/4 bars; whether it feels like a waltz needs ears.

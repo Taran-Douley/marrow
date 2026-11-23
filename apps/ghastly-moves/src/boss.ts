@@ -1,5 +1,11 @@
 import type { BossLook } from './stages';
 import { drawPumpkinKing } from './king';
+import { drawBoneWarden } from './bosses/bone-warden';
+import { drawMossWitch } from './bosses/moss-witch';
+import { drawGatekeeper } from './bosses/gatekeeper';
+import { drawSpiderMiller } from './bosses/spider-miller';
+import { drawHollowWraith } from './bosses/hollow-wraith';
+import { drawCountVexar } from './bosses/count-vexar';
 
 // The bosses, drawn in code from simple shapes. One body, with a head and costume for each.
 // Poses come from the fight: winding up to throw, hurt, laughing. With reduced motion they change
@@ -34,6 +40,15 @@ const PALETTE: Record<BossLook, { body: string; trim: string; eye: string }> = {
   vampire: { body: '#2a0f16', trim: '#c0392b', eye: '#ffd84d' },
 };
 
+const REDRAWN: Partial<Record<BossLook, (ctx: CanvasRenderingContext2D, x: number, groundY: number, pose: BossPose) => void>> = {
+  skeleton: drawBoneWarden,
+  witch: drawMossWitch,
+  knight: drawGatekeeper,
+  spider: drawSpiderMiller,
+  wraith: drawHollowWraith,
+  vampire: drawCountVexar,
+};
+
 /** Where the boss's throwing hand is, relative to the boss's feet, so projectiles leave from it. */
 export const HAND_OFFSET = { x: -120, y: -150 };
 
@@ -41,6 +56,12 @@ export const HAND_OFFSET = { x: -120, y: -150 };
 export function drawBoss(ctx: CanvasRenderingContext2D, look: BossLook, x: number, groundY: number, pose: BossPose): void {
   if (look === 'pumpkin') {
     drawPumpkinKing(ctx, x, groundY, pose);
+    return;
+  }
+  // The redrawn bosses (stages 2 to 4): looked up, not compared, so the old body code below still type-checks for the others.
+  const redrawn = REDRAWN[look];
+  if (redrawn) {
+    redrawn(ctx, x, groundY, pose);
     return;
   }
   const c = PALETTE[look];

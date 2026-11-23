@@ -1,6 +1,8 @@
 import { moveAt, pulseAt, sectionAt, sideBefore, themeFor, type Kit, type Level, type Move, type Obstacle, type Profile, type RunSnapshot } from '@marrow/skeleton';
 import { drawGhost, drawGround, drawLayers, drawObstacleGlow, drawObstacleHalo, drawPortalGate, drawSky, type ArtState } from './art';
 import { drawMound, drawPatchFront, MOUND_HEIGHT } from './patch';
+import { drawStages24Front } from './places/stages-2-4';
+import { drawStages57Front } from './places/stages-5-7';
 import { throwByName, type BossPattern } from './pattern';
 import { drawBoss, drawHealth } from './boss';
 import { drawItem } from './map';
@@ -84,7 +86,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
     flat: profile.theme === 'high-contrast',
     background: theme.background,
     groundY: GROUND_Y,
-    arena: scene.boss?.look === 'pumpkin',
+    arena: scene.boss != null,
   };
   // Sky, moon, three layers of scenery, and the ground. All of it is dim behind the obstacles.
   drawSky(ctx, art);
@@ -199,6 +201,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
   ctx.restore();
   // The foreground silhouettes pass in front, at the edges, and the vignette closes the corners.
   if (art.scenery === 'patch') drawPatchFront(ctx, art);
+  drawStages24Front(ctx, art);
+  drawStages57Front(ctx, art);
 
   // In a song: the move and the part in words, and the beat as four dots, the one now filled. The edge
   // glows on the first beat of each bar (once a bar, never a flicker); with reduced motion only the dots show it.

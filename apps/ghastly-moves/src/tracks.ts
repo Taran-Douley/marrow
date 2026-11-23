@@ -1,4 +1,10 @@
 import type { TrackSpec } from '@marrow/skeleton';
+import { BONE_WARDEN_TRACK, CRYPT_TRACK } from './music/crypt';
+import { MOSS_WITCH_TRACK, WOODS_TRACK } from './music/woods';
+import { GATEKEEPER_TRACK, GATE_TRACK } from './music/gate';
+import { MILL_TRACK, SPIDER_MILLER_TRACK } from './music/mill';
+import { HOLLOW_TRACK, HOLLOW_WRAITH_TRACK } from './music/hollow';
+import { COUNT_VEXAR_TRACK, MANOR_TRACK } from './music/manor';
 
 /**
  * One background track for each place, on the beat of the countdown: a bar is four beats, a slot
@@ -44,64 +50,12 @@ export const TRACKS: readonly TrackSpec[] = [
     // The band builds with the streak: bed and drums, then bass and chords, then the pluck, then the tune.
     stems: { bass: 2, pluck: 4, melody: 6 },
   },
-  {
-    name: 'Crypt Steps: a slow creep',
-    rootHz: 98,
-    scale: PHRYGIAN,
-    bass: ['0-------', '1-------'],
-    melody: ['....2-..', '.3-.2...', '....1-..', '.2-...0.'],
-    kick: ['X.......', 'X...x...'],
-    hat: ['x.x.x.x.'],
-    melodyWave: 'triangle',
-  },
-  {
-    name: 'Whispering Woods: a drifting tune',
-    rootHz: 123,
-    scale: DORIAN,
-    bass: ['0-0-3-0-', '0-0-4-2-'],
-    melody: ['3---5---', '4-3-2---', '..5-4-3-', '2-------'],
-    kick: ['X...x...'],
-    hat: ['.x.x.x.x'],
-    melodyWave: 'triangle',
-  },
-  {
-    name: 'The Old Gate: a march',
-    rootHz: 104,
-    scale: HARMONIC,
-    bass: ['0.0.0.0.', '4.4.0.0.'],
-    melody: ['..3.4.5.', '6---5---', '..3.4.3.', '2---0---'],
-    kick: ['X.x.X.x.'],
-    hat: ['xxxxxxxx'],
-  },
-  {
-    name: 'Haunted Mill: an eerie turn',
-    rootHz: 87,
-    scale: WHOLE_TONE,
-    bass: ['0-----0-', '3-------'],
-    melody: ['.2---4..', '..5---3.', '1---4---', '...6----'],
-    kick: ['X.....x.', '..x.....'],
-    hat: ['x..x..x.'],
-    melodyWave: 'triangle',
-  },
-  {
-    name: 'The Hollow: an uneasy lurch',
-    rootHz: 92,
-    scale: LOCRIAN,
-    bass: ['0--0--0-', '0--0--4-'],
-    melody: ['..2---3.', '4--3--2.', '..5---4.', '3---2---'],
-    kick: ['X..x..x.', 'X..x....'],
-    hat: ['.x..x..x'],
-  },
-  {
-    name: 'Midnight Manor: a grand waltz',
-    rootHz: 117,
-    scale: MINOR,
-    bass: ['0---3---', '0---4---', '0---5---', '0---3-4-'],
-    melody: ['4.5.7.5.', '4.3.2.3.', '5.7.6.7.', '5.4.3---'],
-    kick: ['X...x...', 'X...x.x.'],
-    hat: ['x.x.x.x.'],
-    melodyWave: 'triangle',
-  },
+  CRYPT_TRACK,
+  WOODS_TRACK,
+  GATE_TRACK,
+  MILL_TRACK,
+  HOLLOW_TRACK,
+  MANOR_TRACK,
 ];
 
 /**
@@ -135,6 +89,12 @@ const PUMPKIN_KING: TrackSpec = {
 /** A boss's version of a tune: a little lower, a driving bass and drums. */
 export function bossTrack(spec: TrackSpec): TrackSpec {
   if (spec === TRACKS[0]) return PUMPKIN_KING;
+  if (spec === CRYPT_TRACK) return BONE_WARDEN_TRACK;
+  if (spec === WOODS_TRACK) return MOSS_WITCH_TRACK;
+  if (spec === GATE_TRACK) return GATEKEEPER_TRACK;
+  if (spec === MILL_TRACK) return SPIDER_MILLER_TRACK;
+  if (spec === HOLLOW_TRACK) return HOLLOW_WRAITH_TRACK;
+  if (spec === MANOR_TRACK) return COUNT_VEXAR_TRACK;
   return {
     ...spec,
     name: `${spec.name} (boss)`,
