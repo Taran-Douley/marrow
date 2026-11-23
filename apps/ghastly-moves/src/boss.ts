@@ -1,4 +1,5 @@
 import type { BossLook } from './stages';
+import { drawPumpkinKing } from './king';
 
 // The bosses, drawn in code from simple shapes. One body, with a head and costume for each.
 // Poses come from the fight: winding up to throw, hurt, laughing. With reduced motion they change
@@ -15,6 +16,12 @@ export interface BossPose {
   health: number;
   reducedMotion: boolean;
   nowMs: number;
+  /** The tell is playing: which kind of throw is coming and how far into the tell (0 to 1). The Pumpkin King winds up to match. */
+  windup?: { motion: 'lobbed' | 'rolled' | 'swooped'; u: number };
+  /** The kind of throw being thrown now, so the release matches the wind-up. */
+  throwMotion?: 'lobbed' | 'rolled' | 'swooped';
+  /** 0 to 1: how far the defeat has gone. The Pumpkin King collapses into a pile of pumpkins and leaves. */
+  down?: number;
 }
 
 const PALETTE: Record<BossLook, { body: string; trim: string; eye: string }> = {
@@ -32,6 +39,10 @@ export const HAND_OFFSET = { x: -120, y: -150 };
 
 /** Draw a boss standing at (x, groundY), about 260 px tall. */
 export function drawBoss(ctx: CanvasRenderingContext2D, look: BossLook, x: number, groundY: number, pose: BossPose): void {
+  if (look === 'pumpkin') {
+    drawPumpkinKing(ctx, x, groundY, pose);
+    return;
+  }
   const c = PALETTE[look];
   const calm = pose.reducedMotion;
   const breathe = calm ? 0 : Math.sin(pose.nowMs / 420) * 4;
@@ -109,8 +120,7 @@ export function drawBoss(ctx: CanvasRenderingContext2D, look: BossLook, x: numbe
   ctx.strokeStyle = '#14101f';
   ctx.fillStyle = c.trim;
   ctx.beginPath();
-  if (look === 'pumpkin') ctx.ellipse(hx, hy, 62, 50, 0, 0, Math.PI * 2);
-  else if (look === 'knight') ctx.rect(hx - 48, hy - 52, 96, 100);
+  if (look === 'knight') ctx.rect(hx - 48, hy - 52, 96, 100);
   else if (look === 'spider') ctx.ellipse(hx, hy + 40, 46, 38, 0, 0, Math.PI * 2);
   else ctx.ellipse(hx, hy, 48, 56, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -118,16 +128,7 @@ export function drawBoss(ctx: CanvasRenderingContext2D, look: BossLook, x: numbe
 
   // Costume.
   ctx.fillStyle = '#14101f';
-  if (look === 'pumpkin') {
-    ctx.fillStyle = '#6aa84f';
-    ctx.fillRect(hx - 8, hy - 70, 16, 24);
-    ctx.fillStyle = '#ffd84d'; // a crown
-    ctx.beginPath();
-    ctx.moveTo(hx - 40, hy - 46);
-    for (let i = 0; i <= 4; i++) ctx.lineTo(hx - 40 + i * 20, hy - (i % 2 === 0 ? 46 : 78));
-    ctx.closePath();
-    ctx.fill();
-  } else if (look === 'witch') {
+  if (look === 'witch') {
     ctx.beginPath();
     ctx.moveTo(hx - 75, hy - 40);
     ctx.lineTo(hx + 75, hy - 40);

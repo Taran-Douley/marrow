@@ -411,3 +411,9 @@ A second spec, written before any code: `.kiro/specs/marrow-advisor/` (requireme
 - **Perks.** Three, one per relic: Soft steps (Silver Candle), A free look (Locket), Second chance (Planchette). Mechanics in `skeleton/src/navigation/perks.ts` and `walk.ts`; words, the relic table and the saved choice (`seance.perk`, read once then cleared, so it lasts one run) in `apps/seance-escape/src/perks.ts`. The choice after a run is a scanned list, no time limit, one switch.
 - **Proof.** 205 is played with no perk and with each perk (`simulateRitual({ perk })`). The default `simulateRitual` is the worst of no perk and soft steps, so the generator places the phantom to be fair under both. 207 is also judged with the perk's start line said.
 - **Limits.** The perk start line (about 3 to 5 s) is real speech, so a house must fit 5 to 8 minutes with and without it. "Only helps" is shown by tests on noise levels and on each perk's costs, not by a proof that every play is easier. Not tried by a player.
+
+## 2026-11-23 - Ghastly Moves Stage 1 redo (branch stage1-redo)
+
+- **Work.** Finished a half-done music engine (it typechecked and passed from the start), then drew the Pumpkin Patch in layers (`patch.ts`), designed and drew the Pumpkin King with poses tied to the song's tells (`king.ts`), reworked the stone and the ghost, and wrote the design note and the later bring-your-own-tracks note.
+- **Check.** Screens were rendered by a temporary page in headless Edge calling the real `drawScene`; the page was removed afterwards. Pictures in `private/screens/`.
+- **Limits.** Nothing here has been heard or played by a person.

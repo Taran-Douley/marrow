@@ -95,3 +95,22 @@ Health: `need = ceil(0.7 x throws in the level)`, with `needed(boss, count)`.
 - The short line and the attempt are said while play resumes, and the next number can cut them off.
 - Tunes, tell sounds and bomb pitches were chosen without ears. Tune by playing.
 - Real players, including blind players, have not tried the pattern yet.
+
+## The Pumpkin King (Stage 1 redo)
+
+Drawn in `apps/ghastly-moves/src/king.ts`, code only, no assets. Inspiration is the style of dark hand-drawn action games (cold area hue, silhouette first, rim light); nothing is copied from any game's characters, bosses or music.
+
+- **Silhouette.** A tall triangle of cloak (about 330 px in its own units, drawn at 0.76), a round glowing head, a sharp crown. Not a blob: the read at a glance is "tall spike, round light on top".
+- **Shape language.** Triangles and thorns for the body (cloak, crown tips, hooked fingers, thorns on the arms); round only for the head, so the head is the focal point.
+- **Palette.** Three values plus one accent. Near-black cloak, moss and rust mids (the leaves), ember orange as the only saturated colour (the carved eyes and mouth, the cracks). Cool blue rim light from the moon on the right edges.
+- **Parts.** Head: three-lobed cracked gourd with carved eyes and a jagged mouth lit from inside (flicker under 1 Hz, steady with reduced motion). Crown: five twisted dry stems with curling tendrils. Cloak: six rows of dead leaves, sweeping the ground on the left. Arms: long thin vine arms, thorned, with three hooked fingers. Roots instead of feet. Seeds drift off the cloak.
+- **Poses, tied to the sound.** Idle: slow breathing, cloak sway. Lob wind-up (the rising tell): both arms over the head, head tipped back. Roll wind-up (the low rumble tell): crouch, front arm swept low. Swoop wind-up: one arm flung high and out. Throw: the front arm snaps forward at release, then eases home. Hurt: recoil, cracks flare, a few leaves fall. Laugh: head bobs, mouth widens. Defeated: the cloak sinks, the head rolls down, the glow dies, and a pile of pumpkins and leaves is left (2.6 s). The scene picks the wind-up from the song's `Tell <id>` part, so what is seen is what is heard.
+- **Arena.** When the fight starts the scene shifts: a bigger moon, a ring of tall dead cornstalks, and the King on a raised mound at the right.
+
+## Stage 1 art direction (Pumpkin Patch)
+
+`apps/ghastly-moves/src/patch.ts`. One cold hue (blue-violet night), small warm lights (pumpkins, a church window, the lantern). Layers, far to near: sky and moon with shafts of light; far hill with church spire and dead tree; second ridge with far lit pumpkins; fence and leaning scarecrows; vines and pumpkins on the ground line (some lit, with halos); foreground silhouettes (vines, gate post, grass) at the screen edges only. Fog gradients between layers. Rim light on every silhouette. Static layers are painted once to offscreen canvases. Fireflies and seed fluff drift slowly; with reduced motion all of it stands still. A soft dark halo sits behind every obstacle so stones stay the clearest thing on screen.
+
+## Later: bring-your-own tracks (not built)
+
+A licensed audio track per stage would sit beside the synthesised one. Each track needs: a beat map (BPM, first-beat offset, the song's sections in bars) which the existing song proofs check against the level; pitch-preserving playback for the slower speeds (`HTMLMediaElement.preservesPitch`); the cues (beeps, tells, speech) always above it, with the same ducking; offline caching of the file; and a licence file stored next to each track naming its source and terms. Until a track is added, the synthesised one plays.

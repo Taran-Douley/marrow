@@ -1,4 +1,4 @@
-import type { OutputCommand } from '../../types';
+import type { Instrument, OutputCommand } from '../../types';
 
 // Web Audio player. Everything is synthesised, so no audio files are needed.
 // The context is typed as a small "Like" interface so tests can pass a fake.
@@ -28,6 +28,7 @@ export interface PannerLike {
 export interface FilterLike {
   type: string;
   frequency: AudioParamLike;
+  Q?: AudioParamLike;
   connect(node: unknown): unknown;
 }
 export interface BufferSourceLike {
@@ -96,6 +97,13 @@ export interface SoundPlayer {
   unlock(): void;
   /** How many sounds were left out or cut short to keep under the limit. */
   dropped(): number;
+  /**
+   * Muffle the music (a low-pass on its own bus), for the moment after a fall. Speech, cues and effects
+   * are not touched. `false` lets it open up again over about a second.
+   */
+  muffle(on: boolean): void;
+  /** Duck the music under speech: it drops to a third while `on`, and comes back over a moment. */
+  duck(on: boolean): void;
 }
 
 /** Which sounds give way first when too many play at once. A cue is never dropped. */
@@ -131,11 +139,35 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
    * One reverb per length of echo (to the nearest quarter second), made from decaying noise, so a room
    * can ring without any recording. Built once, then shared.
    */
-  const rooms = new Map<number, ConvolverLike>();
-  const reverb = (seconds: number): ConvolverLike | undefined => {
+  const rooms = new Map<string, ConvolverLike>();
+
+  // The music has its own bus: a gain (to duck under speech) into a low-pass (to muffle after a fall),
+  // then the speakers. Cues, effects and speech never go through it. Without filters, music goes straight out.
+  let musicIn: GainLike | undefined;
+  let musicFilter: FilterLike | undefined;
+  let muffled = false;
+  let ducked = false;
+  const OPEN_HZ = 20000;
+  const MUFFLED_HZ = 450;
+  const musicBus = (): unknown => {
+    if (musicIn) return musicIn;
+    if (!ctx.createBiquadFilter) return ctx.destination;
+    musicIn = ctx.createGain();
+    musicFilter = ctx.createBiquadFilter();
+    musicFilter.type = 'lowpass';
+    musicFilter.frequency.value = muffled ? MUFFLED_HZ : OPEN_HZ;
+    musicIn.gain.value = ducked ? 0.33 : 1;
+    musicIn.connect(musicFilter);
+    musicFilter.connect(ctx.destination);
+    return musicIn;
+  };
+  const toDestination = (role: string): unknown => (role === 'music' ? musicBus() : ctx.destination);
+
+  const reverb = (seconds: number, music = false): ConvolverLike | undefined => {
     if (!ctx.createConvolver || !ctx.createBuffer) return undefined;
     const length = Math.max(0.25, Math.min(4, Math.round(seconds * 4) / 4));
-    const known = rooms.get(length);
+    const key = `${length}|${music}`;
+    const known = rooms.get(key);
     if (known) return known;
     const rate = ctx.sampleRate ?? 44100;
     const frames = Math.floor(rate * length);
@@ -147,8 +179,8 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
     const room = ctx.createConvolver();
     room.normalize = true;
     room.buffer = impulse;
-    room.connect(ctx.destination);
-    rooms.set(length, room);
+    room.connect(toDestination(music ? 'music' : 'effect'));
+    rooms.set(key, room);
     return room;
   };
 
@@ -158,14 +190,308 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
     if (live.length > 96) live = live.slice(-48); // finished sounds fall away
   };
 
+  /**
+   * A plucked string, by Karplus-Strong: a short burst of softened noise is fed round a delay of one
+   * period, averaged each time round, so the high partials die first, as on a real string. Worked out
+   * once for each pitch (to a quarter of a hertz) and kept, so playing a note costs nothing.
+   */
+  const strings = new Map<number, unknown>();
+  const pluckBuffer = (hz: number): unknown => {
+    if (!ctx.createBuffer || !(hz > 20)) return undefined;
+    const rate = ctx.sampleRate ?? 44100;
+    const key = Math.round(hz * 4) / 4;
+    const known = strings.get(key);
+    if (known) return known;
+    const period = Math.max(2, Math.round(rate / key));
+    const length = Math.floor(rate * 1.4);
+    const buffer = ctx.createBuffer(1, length, rate);
+    const data = buffer.getChannelData(0);
+    let soft = 0;
+    for (let i = 0; i < period; i++) {
+      soft = soft * 0.5 + (Math.random() * 2 - 1) * 0.5; // a softened burst: a rounder, folk-guitar start
+      data[i] = soft;
+    }
+    for (let i = period; i < length; i++) data[i] = 0.9985 * 0.5 * (data[i - period]! + (i - period - 1 >= 0 ? data[i - period - 1]! : 0));
+    if (strings.size >= 64) strings.clear();
+    strings.set(key, buffer);
+    return buffer;
+  };
+
   /** Move a parameter from one value to another across [start, end]. */
   const glide = (param: AudioParamLike, from: number, to: number | undefined, start: number, end: number): void => {
     param.setValueAtTime?.(from, start);
     if (to !== undefined) param.linearRampToValueAtTime?.(to, end);
   };
 
+  /** Pan or place a finished sound, send it to the speakers (the music bus for music), and give it its room. */
+  const route = (cmd: SoundCommand, amp: { connect(node: unknown): unknown }, pan: number, mono: boolean, start: number, end: number): void => {
+    const shape = cmd.shape ?? {};
+    const target = mono ? 0 : pan;
+    const panTo = mono ? undefined : shape.panTo;
+    let out: { connect(node: unknown): unknown } = amp;
+    if (cmd.space && !mono && ctx.createPanner) {
+      // True 3D: the browser's head-related filter puts the sound where the direction says. Distance
+      // is already in the gain and filter, so the sound sits one unit away in that direction.
+      const spot = ctx.createPanner();
+      spot.panningModel = 'HRTF';
+      spot.distanceModel = 'inverse';
+      spot.refDistance = 1;
+      spot.rolloffFactor = 0; // distance is handled by the gain, so the panner must not add its own
+      if (spot.positionX && spot.positionY && spot.positionZ) {
+        spot.positionX.value = cmd.space.x;
+        spot.positionY.value = cmd.space.y;
+        spot.positionZ.value = cmd.space.z;
+      } else {
+        spot.setPosition?.(cmd.space.x, cmd.space.y, cmd.space.z);
+      }
+      amp.connect(spot);
+      out = spot;
+    } else if ((target !== 0 || panTo !== undefined) && ctx.createStereoPanner) {
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = Math.max(-1, Math.min(1, target));
+      if (panTo !== undefined) glide(panner.pan, Math.max(-1, Math.min(1, target)), Math.max(-1, Math.min(1, panTo)), start, end);
+      amp.connect(panner);
+      out = panner;
+    }
+    out.connect(toDestination(cmd.role));
+    // The room answers: part of the sound, from where it was, rings on in the reverb.
+    const wet = Math.max(0, Math.min(1, shape.echo ?? 0));
+    if (wet > 0) {
+      const room = reverb(shape.echoSeconds ?? 1.5, cmd.role === 'music');
+      if (room) {
+        const send = ctx.createGain();
+        send.gain.value = wet;
+        out.connect(send);
+        send.connect(room);
+      }
+    }
+  };
+
+  /** A node that is started at `start` and stopped just after `end`, and tracked so Escape can silence it. */
+  const run = (node: Stoppable & { start(when?: number): void }, start: number, end: number): void => {
+    node.start(start);
+    node.stop(end + 0.02);
+    track(node);
+  };
+
+  /** Slow pitch wobble on an oscillator (vibrato), the same as the plain voice has. */
+  const vibrato = (o: OscillatorLike, hz: number, shape: NonNullable<SoundCommand['shape']>, start: number, end: number): void => {
+    if (shape.wobbleHz === undefined || shape.wobble === undefined || shape.wobble <= 0) return;
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = Math.max(0.1, Math.min(20, shape.wobbleHz));
+    const depth = ctx.createGain();
+    depth.gain.value = hz * Math.min(0.5, shape.wobble);
+    lfo.connect(depth);
+    depth.connect(o.frequency);
+    run(lfo, start, end);
+  };
+
+  /**
+   * The instruments, all built from oscillators and noise. Returns false when this context cannot make
+   * the instrument (no filters, no buffers), and the plain voice plays instead.
+   */
+  const instrument = (cmd: SoundCommand, kind: Instrument, hz: number, gain: number, start: number, seconds: number, pan: number, mono: boolean): boolean => {
+    const shape = cmd.shape ?? {};
+    if (!ctx.createBiquadFilter || !ctx.createGain) return false;
+    const noisy = kind === 'snare' || kind === 'hat' || kind === 'shaker' || kind === 'creak';
+    if (noisy && !(ctx.createBufferSource && noiseBuffer())) return false;
+    const pluckSamples = kind === 'pluck' ? pluckBuffer(hz) : undefined;
+    if (kind === 'pluck' && !pluckSamples) return false;
+
+    const end = start + seconds;
+    const peak = Math.max(0, Math.min(1, gain)) * master;
+    const amp = ctx.createGain();
+    /** attack to the peak, an optional decay to a share of it, then down to nothing at the end. */
+    const envelope = (attack: number, sustain = 1, decayBy = 0): void => {
+      const a = Math.min(attack, seconds / 2);
+      amp.gain.setValueAtTime?.(0, start);
+      amp.gain.linearRampToValueAtTime?.(peak, start + a);
+      if (sustain < 1) amp.gain.linearRampToValueAtTime?.(peak * sustain, start + Math.min(seconds * 0.8, a + decayBy));
+      else if (seconds > 1) amp.gain.setValueAtTime?.(peak, end - Math.min(0.5, seconds / 4));
+      amp.gain.linearRampToValueAtTime?.(0, end);
+    };
+    const filter = (type: string, from: number, to?: number, q?: number): FilterLike => {
+      const f = ctx.createBiquadFilter!();
+      f.type = type;
+      glide(f.frequency, from, to, start, end);
+      if (q !== undefined && f.Q) f.Q.value = q;
+      return f;
+    };
+    const osc = (type: string, f: number, share: number, into: { connect(node: unknown): unknown }, glideTo?: number): OscillatorLike => {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = f;
+      if (glideTo !== undefined) glide(o.frequency, f, glideTo, start, end);
+      const level = ctx.createGain();
+      level.gain.value = share;
+      o.connect(level);
+      level.connect(into);
+      run(o, start, end);
+      return o;
+    };
+    const noise = (): BufferSourceLike => {
+      const n = ctx.createBufferSource!();
+      n.buffer = noiseBuffer();
+      n.loop = true;
+      return n;
+    };
+    const hzTo = shape.hzTo;
+
+    switch (kind) {
+      case 'pluck': {
+        // Karplus-Strong: a burst of noise rings in a short feedback loop, worked out once per pitch.
+        const s = ctx.createBufferSource!();
+        s.buffer = pluckSamples;
+        s.loop = false;
+        const tone = filter('lowpass', shape.filterHz ?? 3000, shape.filterTo);
+        s.connect(tone);
+        tone.connect(amp);
+        envelope(0.002);
+        run(s, start, end);
+        break;
+      }
+      case 'keys': {
+        // Soft keys: two-operator FM with a fast fade of the modulation (the bright start), and a detuned triangle for warmth.
+        const mix = ctx.createGain();
+        mix.gain.value = 0.7;
+        const carrier = osc('sine', hz, 1, mix);
+        const mod = ctx.createOscillator();
+        mod.type = 'sine';
+        mod.frequency.value = hz * 2;
+        const depth = ctx.createGain();
+        depth.gain.setValueAtTime?.(hz * 1.4, start);
+        depth.gain.linearRampToValueAtTime?.(hz * 0.08, start + Math.min(0.5, seconds));
+        mod.connect(depth);
+        depth.connect(carrier.frequency);
+        run(mod, start, end);
+        osc('triangle', hz * 1.004, 0.35, mix);
+        const tone = filter('lowpass', shape.filterHz ?? 2400, shape.filterTo);
+        mix.connect(tone);
+        tone.connect(amp);
+        envelope(0.008, 0.35, 0.3);
+        break;
+      }
+      case 'pad': {
+        // A warm pad: three slightly detuned saws through a low-pass, with a slow attack.
+        const mix = ctx.createGain();
+        mix.gain.value = 0.34;
+        const saws = [0.996, 1, 1.004].map((d) => osc('sawtooth', hz * d, 1, mix));
+        if (shape.wobbleHz !== undefined) vibrato(saws[1]!, hz, shape, start, end);
+        const tone = filter('lowpass', shape.filterHz ?? 900, shape.filterTo, 0.7);
+        mix.connect(tone);
+        tone.connect(amp);
+        const a = Math.min(0.45, seconds * 0.3);
+        amp.gain.setValueAtTime?.(0, start);
+        amp.gain.linearRampToValueAtTime?.(peak, start + a);
+        amp.gain.setValueAtTime?.(peak, end - a);
+        amp.gain.linearRampToValueAtTime?.(0, end);
+        break;
+      }
+      case 'sub': {
+        const mix = ctx.createGain();
+        mix.gain.value = 0.8;
+        const main = osc('sine', hz, 1, mix, hzTo);
+        osc('triangle', hz, 0.25, mix, hzTo);
+        vibrato(main, hz, shape, start, end);
+        const tone = filter('lowpass', shape.filterHz ?? 260, shape.filterTo);
+        mix.connect(tone);
+        tone.connect(amp);
+        envelope(seconds > 1 ? Math.min(0.5, seconds / 4) : 0.015);
+        break;
+      }
+      case 'choir': {
+        // A faint choir: a few sines at the note and its upper partials, with a slow wobble and a long swell.
+        const mix = ctx.createGain();
+        mix.gain.value = 0.5;
+        const voices = [osc('sine', hz, 1, mix), osc('sine', hz * 2.003, 0.45, mix), osc('sine', hz * 3.01, 0.22, mix), osc('sine', hz * 1.002, 0.5, mix)];
+        for (const v of voices) vibrato(v, v.frequency.value, shape, start, end);
+        const tone = filter('bandpass', Math.min(2200, hz * 4), undefined, 0.6);
+        mix.connect(tone);
+        tone.connect(amp);
+        const a = Math.min(0.6, seconds * 0.35);
+        amp.gain.setValueAtTime?.(0, start);
+        amp.gain.linearRampToValueAtTime?.(peak, start + a);
+        amp.gain.setValueAtTime?.(peak, end - a);
+        amp.gain.linearRampToValueAtTime?.(0, end);
+        break;
+      }
+      case 'kick': {
+        // A kick: the pitch drops fast, with a very short click at the front.
+        const body = ctx.createGain();
+        body.gain.value = 1;
+        const o = osc('sine', hz, 1, body);
+        const drop = Math.min(0.12, seconds);
+        o.frequency.setValueAtTime?.(hz, start);
+        o.frequency.linearRampToValueAtTime?.(hzTo ?? hz * 0.3, start + drop);
+        body.connect(amp);
+        envelope(0.002, 0.5, 0.04);
+        break;
+      }
+      case 'snare': {
+        // Brushed: noise through a band, with a soft attack, so it swishes instead of cracking.
+        const n = noise();
+        const high = filter('highpass', 1200);
+        const low = filter('lowpass', shape.filterHz ?? 3800, shape.filterTo);
+        n.connect(high);
+        high.connect(low);
+        low.connect(amp);
+        envelope(0.012, 0.3, 0.05);
+        run(n, start, end);
+        break;
+      }
+      case 'hat': {
+        const n = noise();
+        const high = filter('highpass', 6500);
+        n.connect(high);
+        high.connect(amp);
+        envelope(0.002);
+        run(n, start, end);
+        break;
+      }
+      case 'shaker': {
+        const n = noise();
+        const band = filter('bandpass', shape.filterHz ?? 6500, shape.filterTo, 1.2);
+        n.connect(band);
+        band.connect(amp);
+        envelope(Math.min(0.02, seconds * 0.4));
+        run(n, start, end);
+        break;
+      }
+      case 'owl': {
+        // A far-off hoot: a soft sine that sags a little, behind a low-pass, so it sounds distant.
+        const mix = ctx.createGain();
+        mix.gain.value = 1;
+        osc('sine', hz, 1, mix, hz * 0.94);
+        osc('sine', hz * 2, 0.12, mix, hz * 1.88);
+        const tone = filter('lowpass', shape.filterHz ?? 900);
+        mix.connect(tone);
+        tone.connect(amp);
+        envelope(Math.min(0.08, seconds * 0.3), 0.6, seconds * 0.4);
+        break;
+      }
+      case 'creak': {
+        // A creak: noise through a narrow band that slides, swelling in and fading out slowly.
+        const n = noise();
+        const band = filter('bandpass', shape.filterHz ?? 500, shape.filterTo ?? 1400, 9);
+        n.connect(band);
+        band.connect(amp);
+        const a = Math.min(0.3, seconds * 0.4);
+        amp.gain.setValueAtTime?.(0, start);
+        amp.gain.linearRampToValueAtTime?.(peak, start + a);
+        amp.gain.linearRampToValueAtTime?.(0, end);
+        run(n, start, end);
+        break;
+      }
+    }
+    route(cmd, amp, pan, mono, start, end);
+    return true;
+  };
+
   const voice = (cmd: SoundCommand, hz: number, wave: string, gain: number, start: number, seconds: number, pan: number, mono: boolean): void => {
     const shape = cmd.shape ?? {};
+    // An instrument, where this context can make it. Otherwise the plain tone below plays, so nothing is lost.
+    if (shape.voice && instrument(cmd, shape.voice, hz, gain, start, seconds, pan, mono)) return;
     const useNoise = shape.noise === true;
     if (useNoise && !(ctx.createBufferSource && noiseBuffer())) return; // no noise here: skip, never throw
 
@@ -215,45 +541,7 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
     }
     chain.connect(amp);
 
-    const target = mono ? 0 : pan;
-    const panTo = mono ? undefined : shape.panTo;
-    let out: { connect(node: unknown): unknown } = amp;
-    if (cmd.space && !mono && ctx.createPanner) {
-      // True 3D: the browser's head-related filter puts the sound where the direction says. Distance
-      // is already in the gain and filter, so the sound sits one unit away in that direction.
-      const spot = ctx.createPanner();
-      spot.panningModel = 'HRTF';
-      spot.distanceModel = 'inverse';
-      spot.refDistance = 1;
-      spot.rolloffFactor = 0; // distance is handled by the gain, so the panner must not add its own
-      if (spot.positionX && spot.positionY && spot.positionZ) {
-        spot.positionX.value = cmd.space.x;
-        spot.positionY.value = cmd.space.y;
-        spot.positionZ.value = cmd.space.z;
-      } else {
-        spot.setPosition?.(cmd.space.x, cmd.space.y, cmd.space.z);
-      }
-      amp.connect(spot);
-      out = spot;
-    } else if ((target !== 0 || panTo !== undefined) && ctx.createStereoPanner) {
-      const panner = ctx.createStereoPanner();
-      panner.pan.value = Math.max(-1, Math.min(1, target));
-      if (panTo !== undefined) glide(panner.pan, Math.max(-1, Math.min(1, target)), Math.max(-1, Math.min(1, panTo)), start, end);
-      amp.connect(panner);
-      out = panner;
-    }
-    out.connect(ctx.destination);
-    // The room answers: part of the sound, from where it was, rings on in the reverb.
-    const wet = Math.max(0, Math.min(1, shape.echo ?? 0));
-    if (wet > 0) {
-      const room = reverb(shape.echoSeconds ?? 1.5);
-      if (room) {
-        const send = ctx.createGain();
-        send.gain.value = wet;
-        out.connect(send);
-        send.connect(room);
-      }
-    }
+    route(cmd, amp, pan, mono, start, end);
 
     source.start(start);
     source.stop(end + 0.02);
@@ -310,6 +598,28 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
       sounding = [];
     },
     dropped: () => dropped,
+    muffle(on) {
+      muffled = on;
+      const f = musicFilter;
+      if (!f) return; // no music has played yet: the bus will open muffled when it is made
+      const now = ctx.currentTime;
+      f.frequency.setValueAtTime?.(f.frequency.value, now);
+      if (on) {
+        f.frequency.linearRampToValueAtTime?.(MUFFLED_HZ, now + 0.08);
+        return;
+      }
+      // Opening up: steps spaced evenly in pitch, so it sweeps open and does not jump at the end.
+      const steps = 8;
+      for (let i = 1; i <= steps; i++) f.frequency.linearRampToValueAtTime?.(MUFFLED_HZ * (OPEN_HZ / MUFFLED_HZ) ** (i / steps), now + (i / steps) * 0.9);
+    },
+    duck(on) {
+      ducked = on;
+      const g = musicIn?.gain;
+      if (!g) return;
+      const now = ctx.currentTime;
+      g.setValueAtTime?.(g.value, now);
+      g.linearRampToValueAtTime?.(on ? 0.33 : 1, now + (on ? 0.06 : 0.4));
+    },
     unlock() {
       if (ctx.state === 'suspended') void ctx.resume?.();
     },
