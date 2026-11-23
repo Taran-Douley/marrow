@@ -103,17 +103,39 @@ export function drawPatchSky(ctx: Ctx, s: ArtState): void {
   ctx.beginPath();
   ctx.arc(mx, my, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = withAlpha('#8d93b8', 0.4);
+  // A few round craters: a faint dark disc with a pale lower lip, so they read as dents and not holes.
+  const craters: [number, number, number][] = [
+    [-0.34, -0.2, 0.19],
+    [0.28, 0.3, 0.13],
+    [0.12, -0.46, 0.08],
+    [-0.1, 0.42, 0.09],
+    [0.46, -0.1, 0.07],
+  ];
+  for (const [cx, cy, cr] of craters) {
+    ctx.fillStyle = withAlpha('#8f96bd', 0.26);
+    ctx.beginPath();
+    ctx.arc(mx + r * cx, my + r * cy, r * cr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = withAlpha('#ffffff', 0.18);
+    ctx.lineWidth = Math.max(1, r * 0.025);
+    ctx.beginPath();
+    ctx.arc(mx + r * cx, my + r * cy, r * cr, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  }
+  // One thin wisp of cloud in front: pale and soft at both ends, never a dark bar.
+  ctx.save();
+  ctx.translate(mx - r * 0.1, my + r * 0.52);
+  ctx.rotate(-0.06);
+  ctx.scale(1, 0.11);
+  ctx.fillStyle = radial(ctx, 0, 0, 0, r * 1.5, [
+    { at: 0, colour: withAlpha('#c9d2ff', 0.3) },
+    { at: 0.6, colour: withAlpha('#c9d2ff', 0.12) },
+    { at: 1, colour: withAlpha('#c9d2ff', 0) },
+  ]);
   ctx.beginPath();
-  ctx.arc(mx - r * 0.32, my - r * 0.18, r * 0.2, 0, Math.PI * 2);
-  ctx.arc(mx + r * 0.26, my + r * 0.3, r * 0.14, 0, Math.PI * 2);
-  ctx.arc(mx + r * 0.1, my - r * 0.45, r * 0.09, 0, Math.PI * 2);
+  ctx.arc(0, 0, r * 1.5, 0, Math.PI * 2);
   ctx.fill();
-  // A few thin clouds across the moon, in the sky's own colour, so it is not a flat disc.
-  ctx.fillStyle = withAlpha(COLD.skyMid, 0.55);
-  ctx.beginPath();
-  ctx.ellipse(mx - r * 0.2, my + r * 0.55, r * 1.2, r * 0.1, -0.08, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.restore();
   ctx.restore();
   // Shafts of moonlight through the mist: three long, soft slants.
   ctx.save();
@@ -204,7 +226,8 @@ function paintFar(c: Ctx): void {
   c.lineTo(cx - 19, cy - 12);
   c.fill();
   // The dead tree on the same hill.
-  const tx = 700;
+  // Kept clear of the moon (the moon is at x 600 in the stage view, 520 in the arena): its branches never cross the face.
+  const tx = 800;
   const ty = farY(tx) + 6;
   c.strokeStyle = COLD.far;
   c.fillStyle = COLD.far;
@@ -485,7 +508,8 @@ export function drawPatchFront(ctx: Ctx, s: ArtState): void {
   const scroll = s.reducedMotion ? 0 : s.t * s.pxPerSec * 1.15;
   ctx.save();
   ctx.beginPath();
-  ctx.rect(0, 0, 96, H);
+  // A thin frame only: at 96 px a passing post hid the stone just jumped, which read as a glitch.
+  ctx.rect(0, 0, 40, H);
   ctx.rect(W - 120, 0, 120, 56);
   ctx.clip();
   tile(scroll, FRONT_W, (dx) => blit(ctx, 'patch-front', FRONT_W, H, dx, 0, paintFront));
@@ -498,6 +522,112 @@ export function drawPatchFront(ctx: Ctx, s: ArtState): void {
     { at: 1, colour: 'rgba(2, 3, 12, 0.5)' },
   ]);
   ctx.fillRect(0, 0, W, H);
+}
+
+// ---- the dirt path ------------------------------------------------------------------------
+
+const PATH_TOP = 16; // room above the ground line for grass tufts
+const PATH_H = 156;
+
+function paintPath(c: Ctx): void {
+  const o = PATH_TOP;
+  // Packed earth, lit at the top by the moon and falling into the dark of the foreground grass.
+  c.fillStyle = linear(c, 0, o, 0, PATH_H, [
+    { at: 0, colour: '#322a4c' },
+    { at: 0.22, colour: '#251f3c' },
+    { at: 0.6, colour: '#15122a' },
+    { at: 1, colour: '#080712' },
+  ]);
+  c.fillRect(0, o, W, PATH_H - o);
+  c.fillStyle = linear(c, 0, o, 0, o + 8, [
+    { at: 0, colour: withAlpha('#9aa6ee', 0.2) },
+    { at: 1, colour: withAlpha('#9aa6ee', 0) },
+  ]);
+  c.fillRect(0, o, W, 8);
+  // Speckle: grit and clods, more of it near the top where the light falls.
+  for (let i = 0; i < 260; i++) {
+    const x = hash(i, 130) * W;
+    const y = o + 3 + hash(i, 131) ** 1.6 * (PATH_H - o - 8);
+    const w = 1 + hash(i, 132) * 3;
+    c.fillStyle = hash(i, 133) < 0.5 ? withAlpha('#0a0818', 0.35) : withAlpha('#7f8ad0', 0.14);
+    c.beginPath();
+    c.ellipse(x, y, w, w * 0.55, 0, 0, Math.PI * 2);
+    c.fill();
+  }
+  // Faint ruts: two wheel tracks in broken dashes, a shadow with a pale lower lip.
+  for (const [row, ry] of [[0, o + 30], [1, o + 52]] as const) {
+    let x = 14 + hash(row, 140) * 30;
+    let n = 0;
+    while (x < W - 60) {
+      const len = 70 + hash(n + row * 20, 141) * 90;
+      const end = Math.min(x + len, W - 14);
+      const wob = (px: number): number => ry + Math.sin(px * 0.021 + row * 2) * 1.6;
+      for (const [dy, colour, width] of [[0, 'rgba(4, 3, 12, 0.32)', 4], [3, withAlpha('#aab4ff', 0.08), 1.4]] as const) {
+        c.strokeStyle = colour;
+        c.lineWidth = width;
+        c.lineCap = 'round';
+        c.beginPath();
+        for (let px = x; px <= end; px += 8) (px === x ? c.moveTo(px, wob(px) + dy) : c.lineTo(px, wob(px) + dy));
+        c.stroke();
+      }
+      x = end + 30 + hash(n + row * 20, 142) * 70;
+      n++;
+    }
+  }
+  // Small stones set in the earth near the top edge, each with a pale top and a dark foot.
+  for (let i = 0; i < 16; i++) {
+    const x = 20 + hash(i, 150) * (W - 40);
+    const y = o + 7 + hash(i, 151) * 34;
+    const w = 3 + hash(i, 152) * 4.5;
+    c.fillStyle = 'rgba(4, 3, 12, 0.4)';
+    c.beginPath();
+    c.ellipse(x + 1, y + w * 0.5, w * 1.1, w * 0.45, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#463e66';
+    c.beginPath();
+    c.ellipse(x, y, w, w * 0.65, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = withAlpha('#b4bdff', 0.35);
+    c.lineWidth = 1.1;
+    c.beginPath();
+    c.ellipse(x, y, w, w * 0.65, 0, 1.15 * Math.PI, 1.85 * Math.PI);
+    c.stroke();
+  }
+  // Grass tufts along the top edge: dark blades with a cool rim, leaning every way, short enough to leave the line clear.
+  c.lineCap = 'round';
+  for (let i = 0; i < 34; i++) {
+    const x = 6 + hash(i, 160) * (W - 40);
+    const blades = 3 + Math.floor(hash(i, 161) * 3);
+    for (let b = 0; b < blades; b++) {
+      const h = 5 + hash(i * 7 + b, 162) * 8;
+      const lean = (b - (blades - 1) / 2) * 3.4 + (hash(i * 7 + b, 163) - 0.5) * 3;
+      for (const [dx, dy, colour] of [[0.8, -0.8, withAlpha('#7f94d8', 0.45)], [0, 0, '#0c0a20']] as const) {
+        c.strokeStyle = colour;
+        c.lineWidth = 1.7;
+        c.beginPath();
+        c.moveTo(x + b * 2 + dx, o + 2 + dy);
+        c.quadraticCurveTo(x + b * 2 + lean * 0.4 + dx, o - h * 0.6 + dy, x + b * 2 + lean + dx, o - h + dy);
+        c.stroke();
+      }
+    }
+  }
+  // At the bottom the path gives way to dark grass.
+  c.fillStyle = '#07060f';
+  for (let i = 0; i < 70; i++) {
+    const x = hash(i, 170) * (W - 12);
+    const h = 8 + hash(i, 171) * 16;
+    c.beginPath();
+    c.moveTo(x, PATH_H);
+    c.quadraticCurveTo(x + 2 - hash(i, 172) * 8, PATH_H - h * 0.6, x + 4 - hash(i, 173) * 10, PATH_H - h);
+    c.quadraticCurveTo(x + 5, PATH_H - h * 0.5, x + 9, PATH_H);
+    c.fill();
+  }
+}
+
+/** The dirt path under the ghost: cached once, scrolls with the level, and stands still with reduced motion. The ground line itself is drawn after it, crisp. */
+export function drawPatchPath(ctx: Ctx, s: ArtState): void {
+  const scroll = s.reducedMotion ? 0 : s.t * s.pxPerSec;
+  tile(scroll, W, (dx) => blit(ctx, 'patch-path', W, PATH_H, dx, s.groundY - PATH_TOP, paintPath));
 }
 
 // ---- arena -------------------------------------------------------------------------------

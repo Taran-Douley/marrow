@@ -62,10 +62,15 @@ const RELEASE_X = 580;
 const freshness = (now: number, at: number, ms: number): number => Math.max(0, 1 - (now - at) / ms);
 
 const POPUP_MS = 900;
+/** The top strip: the title, then the boss's health bar (30 px tall) or the move line, then the beat dots. */
+const TITLE_Y = 20;
+const BAR_Y = 58;
+const BAR_H = 30;
 
 export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Profile, scene: SceneState): void {
   const theme = themeFor(profile.theme, profile.palette);
   const t = scene.snapshot?.t ?? 0;
+  const titleSize = Math.round(20 * Math.min(profile.textScale, 1.5));
   // The picture breathes with the song: one soft swell a beat, none when motion is reduced, and none
   // in a level that has no song to keep time with.
   const pulse = scene.level?.sections ? pulseAt(t, kit.timing.beat, profile.reducedMotion) : 0;
@@ -114,7 +119,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
       `${boss.name}: ${boss.health} ${boss.health === 1 ? 'hit' : 'hits'} to go`,
       boss.max === 0 ? 0 : boss.health / boss.max,
       WIDTH / 2 - 220,
-      58,
+      BAR_Y,
       440,
       { text: theme.text, panel: theme.panel, line: theme.line, fill: '#7a2b3f' },
       `bold ${Math.round(18 * Math.min(profile.textScale, 1.4))}px ${FONT}`,
@@ -198,15 +203,18 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
   // In a song: the move and the part in words, and the beat as four dots, the one now filled. The edge
   // glows on the first beat of each bar (once a bar, never a flicker); with reduced motion only the dots show it.
   if (level?.sections) {
-    drawBeat(ctx, t, kit.timing.beat, profile.reducedMotion, theme.line, theme.amber);
+    // The dots sit under whatever is above them: the move line, or in a boss fight the health bar (never over it).
+    const modeSize = Math.round(18 * Math.min(profile.textScale, 1.4));
+    const modeY = TITLE_Y + titleSize + 4;
+    drawBeat(ctx, t, kit.timing.beat, profile.reducedMotion, theme.line, theme.amber, boss ? BAR_Y + BAR_H + 16 : modeY + modeSize + 14);
     const part = sectionAt(level, t);
     ctx.fillStyle = theme.text;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.font = `${Math.round(18 * Math.min(profile.textScale, 1.4))}px ${FONT}`;
+    ctx.font = `${modeSize}px ${FONT}`;
     // In a boss fight the health bar sits here, and the part names ("Tell lob") are for the code, not the
     // player: the tell's own caption says what is coming.
-    if (!boss) ctx.fillText(`${MOVE_WORDS[moveNow]}${part ? `. ${part.name}` : ''}`, WIDTH / 2, 50);
+    if (!boss) ctx.fillText(`${MOVE_WORDS[moveNow]}${part ? `. ${part.name}` : ''}`, WIDTH / 2, modeY);
   }
 
   // The judgement as a word above the ghost. With reduced motion it stays still, then goes.
@@ -221,28 +229,34 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
   }
 
   // The score and the lesson, in words, so nothing here is only a picture.
+  // Each line starts below the one above it, whatever the text size, so no two lines overlap.
+  const bigSize = Math.round(24 * Math.min(profile.textScale, 1.5));
+  const lineSize = Math.round(20 * Math.min(profile.textScale, 1.5));
   ctx.fillStyle = theme.text;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.font = `bold ${Math.round(24 * Math.min(profile.textScale, 1.5))}px ${FONT}`;
+  ctx.font = `bold ${bigSize}px ${FONT}`;
   ctx.fillText(`Score ${scene.snapshot?.score ?? 0}`, 24, 20);
+  const streakY = 20 + bigSize + 6;
   ctx.fillStyle = theme.mutedText;
-  ctx.font = `${Math.round(20 * Math.min(profile.textScale, 1.5))}px ${FONT}`;
-  ctx.fillText(`Streak ${streak}`, 24, 52);
+  ctx.font = `${lineSize}px ${FONT}`;
+  ctx.fillText(`Streak ${streak}`, 24, streakY);
   ctx.textAlign = 'center';
-  ctx.fillText(scene.title, WIDTH / 2, 20);
+  ctx.fillText(scene.title, WIDTH / 2, TITLE_Y);
   if (scene.hud) {
     ctx.textAlign = 'left';
     ctx.fillStyle = theme.text;
-    ctx.fillText(scene.hud, 24, 80);
+    ctx.fillText(scene.hud, 24, streakY + lineSize + 6, boss ? 220 : 400);
   }
   if (scene.stats) {
     ctx.textAlign = 'right';
     ctx.fillStyle = theme.text;
-    ctx.font = `bold ${Math.round(20 * Math.min(profile.textScale, 1.5))}px ${FONT}`;
-    ctx.fillText(`Progress ${scene.stats.percent}%`, WIDTH - 24, 70);
+    ctx.font = `bold ${lineSize}px ${FONT}`;
+    const statsY = 66;
+    ctx.fillText(`Progress ${scene.stats.percent}%`, WIDTH - 24, statsY);
     ctx.fillStyle = theme.mutedText;
-    ctx.fillText(`Attempt ${scene.stats.attempt}   Best ${scene.stats.best}%`, WIDTH - 24, 96);
+    ctx.font = `${lineSize}px ${FONT}`;
+    ctx.fillText(`Attempt ${scene.stats.attempt}   Best ${scene.stats.best}%`, WIDTH - 24, statsY + lineSize + 6);
   }
   (scene.items ?? []).forEach((id, i) => drawItem(ctx, id, WIDTH - 36 - i * 44, 36, 15, '#14101f'));
 }
@@ -355,12 +369,12 @@ function drawMoveObstacle(
 }
 
 /** Four beat dots under the title, and a glow round the edge on each bar's first beat. */
-function drawBeat(ctx: CanvasRenderingContext2D, t: number, beat: number, reducedMotion: boolean, line: string, lit: string): void {
+function drawBeat(ctx: CanvasRenderingContext2D, t: number, beat: number, reducedMotion: boolean, line: string, lit: string, y: number): void {
   const n = Math.floor(t / beat + 1e-6);
   const now = ((n % 4) + 4) % 4;
   for (let i = 0; i < 4; i++) {
     ctx.beginPath();
-    ctx.arc(WIDTH / 2 - 36 + i * 24, 88, i === now ? 8 : 6, 0, Math.PI * 2);
+    ctx.arc(WIDTH / 2 - 36 + i * 24, y, i === now ? 8 : 6, 0, Math.PI * 2);
     if (i === now) {
       ctx.fillStyle = lit;
       ctx.fill();

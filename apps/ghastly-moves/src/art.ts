@@ -1,6 +1,6 @@
 import { PULSE_MAX_ALPHA } from '@marrow/skeleton';
 import type { Scenery } from './stages';
-import { drawPatchLayers, drawPatchSky } from './patch';
+import { drawPatchLayers, drawPatchSky, drawPatchPath } from './patch';
 
 // The look of the game, all drawn in code with canvas shapes. A gradient night sky, a moon with a soft
 // glow, layers of silhouettes that drift at different speeds (parallax), a ground with texture, a ghost
@@ -434,14 +434,18 @@ export function drawLayers(ctx: CanvasRenderingContext2D, s: ArtState): void {
 /** The ground: a soft gradient, the line you run on, and tufts that move with the obstacles. */
 export function drawGround(ctx: CanvasRenderingContext2D, s: ArtState, colours: { panel: string; line: string }): void {
   const gy = s.groundY;
-  ctx.fillStyle = s.flat ? colours.panel : linear(ctx, 0, gy, 0, HEIGHT, [{ at: 0, colour: colours.panel }, { at: 1, colour: '#0a0712' }]);
-  ctx.fillRect(0, gy, WIDTH, HEIGHT - gy);
+  const dirt = !s.flat && s.scenery === 'patch';
+  if (dirt) drawPatchPath(ctx, s);
+  else {
+    ctx.fillStyle = s.flat ? colours.panel : linear(ctx, 0, gy, 0, HEIGHT, [{ at: 0, colour: colours.panel }, { at: 1, colour: '#0a0712' }]);
+    ctx.fillRect(0, gy, WIDTH, HEIGHT - gy);
+  }
   if (!s.flat && s.pulse > 0 && PULSE_LOOK[s.scenery].glow === 'ground') {
     // This place's swell lights the ground just under the line.
     ctx.fillStyle = withAlpha(PULSE_LOOK[s.scenery].colour, s.pulse * PULSE_MAX_ALPHA);
     ctx.fillRect(0, gy, WIDTH, 40);
   }
-  if (!s.flat) {
+  if (!s.flat && !dirt) {
     ctx.save();
     ctx.strokeStyle = withAlpha('#9d94b5', 0.22);
     ctx.lineWidth = 2;

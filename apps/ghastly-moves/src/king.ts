@@ -98,20 +98,20 @@ export function bodyPose(pose: BossPose): BodyPose {
 
 // ---- the cached shells --------------------------------------------------------------------
 
-const CLOAK_W = 440;
-const CLOAK_H = 360;
-const CLOAK_OX = 220;
+const CLOAK_W = 480;
+const CLOAK_H = 384;
+const CLOAK_OX = 240;
 const CLOAK_OY = 350;
 
-function leaf(c: Ctx, x: number, y: number, length: number, angle: number, colour: string, rim: boolean): void {
+function leaf(c: Ctx, x: number, y: number, length: number, angle: number, colour: string, rim: boolean, width = 10): void {
   c.save();
   c.translate(x, y);
   c.rotate(angle);
   c.fillStyle = colour;
   c.beginPath();
   c.moveTo(0, 0);
-  c.quadraticCurveTo(10, length * 0.45, 1, length);
-  c.quadraticCurveTo(-10, length * 0.45, 0, 0);
+  c.quadraticCurveTo(width, length * 0.45, 1, length);
+  c.quadraticCurveTo(-width, length * 0.45, 0, 0);
   c.fill();
   c.strokeStyle = 'rgba(8, 7, 14, 0.5)';
   c.lineWidth = 1;
@@ -124,54 +124,186 @@ function leaf(c: Ctx, x: number, y: number, length: number, angle: number, colou
     c.lineWidth = 1.4;
     c.beginPath();
     c.moveTo(1, 1);
-    c.quadraticCurveTo(10.5, length * 0.45, 1.5, length - 1);
+    c.quadraticCurveTo(width + 0.5, length * 0.45, 1.5, length - 1);
     c.stroke();
   }
   c.restore();
 }
 
+// The cloak's outline: half-widths from the shoulders to the hem, a little wavy so it hangs and does not stand like a cone.
+const TOP_Y = -198;
+const HEM_Y = -26;
+const hang = (y: number): number => Math.max(0, Math.min(1, (y - TOP_Y) / (HEM_Y - TOP_Y)));
+const leftEdge = (y: number): number => -(100 + hang(y) ** 2 * 104 - Math.sin(hang(y) * Math.PI) * 12 + Math.sin(y * 0.06) * 3);
+const rightEdge = (y: number): number => 96 + hang(y) ** 2 * 74 - Math.sin(hang(y) * Math.PI) * 12 + Math.sin(y * 0.06 + 1) * 3;
+
+function cloakPath(c: Ctx): void {
+  c.beginPath();
+  c.moveTo(-34, -226);
+  c.quadraticCurveTo(-64, -222, leftEdge(TOP_Y), TOP_Y);
+  for (let y = TOP_Y + 14; y <= HEM_Y; y += 14) c.lineTo(leftEdge(y), y);
+  c.lineTo(leftEdge(HEM_Y), HEM_Y + 6);
+  c.lineTo(rightEdge(HEM_Y), HEM_Y + 6);
+  for (let y = HEM_Y; y >= TOP_Y; y -= 14) c.lineTo(rightEdge(y), y);
+  c.quadraticCurveTo(64, -222, 34, -226);
+  c.closePath();
+}
+
+/** The cloak hangs in three big folds: a lit right panel, a dark opening down the middle, and a mossy left panel. */
 function paintCloak(c: Ctx): void {
   c.save();
   c.translate(CLOAK_OX, CLOAK_OY);
-  // The base: a tall triangle with a hem that sweeps the ground, longer on the left.
-  const path = (): void => {
-    c.beginPath();
-    c.moveTo(-40, -214);
-    c.bezierCurveTo(-60, -150, -112, -76, -196, -2);
-    c.lineTo(-120, 8);
-    c.lineTo(-20, 4);
-    c.lineTo(70, 8);
-    c.lineTo(156, 0);
-    c.bezierCurveTo(112, -76, 62, -150, 40, -214);
-    c.closePath();
+  // The two fold ridges, as curves from the collar to the hem.
+  const ridgeA = (): void => {
+    c.moveTo(-34, -206);
+    c.bezierCurveTo(-52, -140, -74, -80, -84, -22);
   };
-  c.fillStyle = linear(c, 0, -214, 0, 0, [
-    { at: 0, colour: '#07060d' },
-    { at: 1, colour: '#15101e' },
+  const ridgeB = (): void => {
+    c.moveTo(40, -206);
+    c.bezierCurveTo(50, -140, 60, -80, 74, -22);
+  };
+  c.save();
+  cloakPath(c);
+  c.clip();
+  c.fillStyle = linear(c, 0, TOP_Y, 0, HEM_Y, [
+    { at: 0, colour: '#0a0b10' },
+    { at: 1, colour: '#171a14' },
   ]);
-  path();
+  c.fillRect(-260, -240, 520, 240);
+  // Left panel: mossy, lit a little at its outer edge.
+  c.beginPath();
+  ridgeA();
+  c.lineTo(-260, -22);
+  c.lineTo(-260, -240);
+  c.lineTo(-34, -240);
+  c.closePath();
+  c.fillStyle = linear(c, -210, 0, -40, 0, [
+    { at: 0, colour: '#2c3b20' },
+    { at: 0.6, colour: '#182114' },
+    { at: 1, colour: '#0c100b' },
+  ]);
   c.fill();
-  // Layers of dead leaves, row by row from the shoulders to the hem: moss, rust and shadow.
-  const rows = 6;
-  for (let r = 0; r < rows; r++) {
-    const y = -196 + r * 34;
-    const half = lerp(44, 150, (y + 214) / 214) + (r === rows - 1 ? 30 : 0);
-    const n = Math.round((half * 2) / 19);
-    for (let i = 0; i <= n; i++) {
-      const u = i / n;
-      const x = -half * 1.05 + u * half * 2.0 - (r === rows - 1 ? 30 : 0);
-      const pick = hash(r * 31 + i, 80);
-      const colour = pick < 0.34 ? MOSS : pick < 0.62 ? RUST : pick < 0.82 ? MOSS_DARK : '#120f1b';
-      const length = 36 + hash(r * 17 + i, 81) * 18 + (r === rows - 1 ? 14 : 0);
-      leaf(c, x, y, length, (u - 0.5) * 0.6 + (hash(i, 82 + r) - 0.5) * 0.25, colour, u > 0.62 && pick < 0.82);
+  // The dark opening between the ridges: the inner shadow.
+  c.beginPath();
+  ridgeA();
+  c.lineTo(74, -22);
+  c.bezierCurveTo(60, -80, 50, -140, 40, -206);
+  c.closePath();
+  c.fillStyle = linear(c, 0, -204, 0, -22, [
+    { at: 0, colour: '#040409' },
+    { at: 1, colour: '#12101a' },
+  ]);
+  c.fill();
+  // Right panel: near-black with the moon's blue along its outer edge.
+  c.beginPath();
+  ridgeB();
+  c.lineTo(260, -22);
+  c.lineTo(260, -240);
+  c.lineTo(40, -240);
+  c.closePath();
+  c.fillStyle = linear(c, 50, 0, 170, 0, [
+    { at: 0, colour: '#141b12' },
+    { at: 0.5, colour: '#1c2a2a' },
+    { at: 1, colour: '#4a5da0' },
+  ]);
+  c.fill();
+  // A smaller fold in the left panel, and the folds' edges: a dark crease with a pale lip.
+  c.lineCap = 'round';
+  // Big soft folds in the outer panels: a wide dark crease with a lit lip beside it.
+  const creases: [number, number, number, number, number, number][] = [
+    [-70, -200, -96, -120, -142, -30],
+    [-100, -190, -146, -110, -196, -34],
+    [78, -200, 104, -120, 128, -30],
+    [98, -186, 134, -110, 158, -34],
+  ];
+  for (const [x0, y0, cx, cy, x1, y1] of creases) {
+    for (const [off, colour, width] of [[0, withAlpha('#020207', 0.6), 11], [7, withAlpha(x0 > 0 ? RIM : '#6b8a45', x0 > 0 ? 0.5 : 0.4), 2.4]] as const) {
+      c.strokeStyle = colour;
+      c.lineWidth = width;
+      c.beginPath();
+      c.moveTo(x0 + off, y0);
+      c.quadraticCurveTo(cx + off, cy, x1 + off, y1);
+      c.stroke();
+    }
+  }
+  c.beginPath();
+  ridgeA();
+  c.strokeStyle = withAlpha('#4d6130', 0.5);
+  c.lineWidth = 2.4;
+  c.stroke();
+  c.beginPath();
+  ridgeB();
+  c.strokeStyle = withAlpha(RIM, 0.6);
+  c.lineWidth = 2;
+  c.stroke();
+  // The spine: a stem running down the chest, with ribs.
+  c.strokeStyle = '#2b361b';
+  c.lineWidth = 7;
+  c.beginPath();
+  c.moveTo(-2, -200);
+  c.bezierCurveTo(-10, -150, 8, -110, 2, -62);
+  c.stroke();
+  c.strokeStyle = withAlpha(RIM, 0.45);
+  c.lineWidth = 1.5;
+  c.beginPath();
+  c.moveTo(1.5, -200);
+  c.bezierCurveTo(-6, -150, 11, -110, 5.5, -62);
+  c.stroke();
+  c.strokeStyle = '#1e2714';
+  c.lineWidth = 3;
+  for (let i = 0; i < 5; i++) {
+    const y = -184 + i * 24;
+    const x = (i % 2 ? 3 : -4) * 0.5;
+    for (const side of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(x, y);
+      c.quadraticCurveTo(x + side * 16, y + 4, x + side * (22 - i * 2), y + 20);
+      c.stroke();
+    }
+  }
+  c.restore();
+
+  // Hem: two rows of ragged leaves hang below the cloth, the back row darker and longer.
+  for (let row = 0; row < 2; row++) {
+    const n = row === 0 ? 24 : 21;
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1);
+      const x = lerp(leftEdge(HEM_Y) - 6, rightEdge(HEM_Y) + 4, u) + (hash(i + row * 40, 83) - 0.5) * 8;
+      const pick = hash(i * 3 + row * 11, 84);
+      const colour = row === 0 ? (pick < 0.5 ? '#0d110b' : '#15111d') : pick < 0.36 ? MOSS : pick < 0.66 ? RUST : pick < 0.86 ? MOSS_DARK : '#1b1626';
+      const length = row === 0 ? 22 + hash(i, 85) * 16 + (hash(i, 93) > 0.78 ? 12 : 0) : 14 + hash(i * 2, 86) * 15 + (hash(i, 94) > 0.82 ? 10 : 0);
+      leaf(c, x, row === 0 ? -34 : -26, length, (u - 0.5) * 0.3 + (hash(i, 87 + row) - 0.5) * 0.5, colour, u > 0.55 && pick < 0.86, row === 0 ? 14 : 11);
+    }
+  }
+  // The sides: a ragged fringe of leaves along both edges, flung outward and down.
+  for (let y = TOP_Y + 8; y < HEM_Y - 8; y += 15) {
+    for (const side of [-1, 1] as const) {
+      const pick = hash(y * 0.31 + side, 88);
+      const colour = pick < 0.4 ? MOSS : pick < 0.7 ? RUST : MOSS_DARK;
+      const edge = side === -1 ? leftEdge(y) : rightEdge(y);
+      leaf(c, edge - side * 5, y, 22 + hash(y, 89) * 14, -side * (0.7 + hash(y, 90) * 0.5), colour, side === 1 && pick < 0.7, 11);
+    }
+  }
+  // Collar: a stiff fan of leaves that rises behind the head and flares over the shoulders.
+  for (let i = 0; i < 11; i++) {
+    const u = i / 10;
+    const x = lerp(-56, 56, u);
+    const pick = hash(i, 91);
+    const colour = pick < 0.45 ? MOSS_DARK : pick < 0.75 ? '#12160d' : RUST;
+    leaf(c, x, -192, 34 + hash(i, 92) * 14, Math.PI + (u - 0.5) * 1.5, colour, u > 0.5 && pick < 0.75, 13);
+  }
+  // Shoulders: three leaves each, laid over like pauldrons.
+  for (const side of [-1, 1] as const) {
+    for (let k = 0; k < 3; k++) {
+      leaf(c, side * (64 + k * 14), -204 + k * 7, 30 - k * 3, -side * (0.95 + k * 0.28), k === 1 ? RUST : MOSS_DARK, side === 1, 13);
     }
   }
   // The right edge of the cloak catches the moon.
-  c.strokeStyle = withAlpha(RIM, 0.5);
+  c.strokeStyle = withAlpha(RIM, 0.55);
   c.lineWidth = 1.8;
   c.beginPath();
-  c.moveTo(41, -214);
-  c.bezierCurveTo(63, -150, 113, -76, 157, -1);
+  c.moveTo(rightEdge(TOP_Y) + 1, TOP_Y);
+  for (let y = TOP_Y + 14; y <= HEM_Y; y += 14) c.lineTo(rightEdge(y) + 1, y);
   c.stroke();
   c.restore();
 }
@@ -258,37 +390,82 @@ function paintHead(c: Ctx): void {
 
 // ---- parts drawn each frame ---------------------------------------------------------------
 
-/** A long thin vine arm with thorns and a hooked hand. Tapers from the shoulder. */
+/** A point on the arm's two-part curve (shoulder to elbow to hand), for t from 0 to 1. */
+function armPoint(shoulder: Pt, elbow: Pt, hand: Pt, side: 1 | -1, t: number): Pt {
+  const bend = (a: Pt, ctrl: Pt, b: Pt, u: number): Pt => [(1 - u) ** 2 * a[0] + 2 * (1 - u) * u * ctrl[0] + u * u * b[0], (1 - u) ** 2 * a[1] + 2 * (1 - u) * u * ctrl[1] + u * u * b[1]];
+  const c1: Pt = [elbow[0] - side * 8, elbow[1] + 6];
+  const c2: Pt = [elbow[0] + (hand[0] - elbow[0]) * 0.4 + 6, elbow[1] + (hand[1] - elbow[1]) * 0.6];
+  return t < 0.5 ? bend(shoulder, c1, elbow, t * 2) : bend(elbow, c2, hand, (t - 0.5) * 2);
+}
+
+/** A twisted vine arm: thick at the shoulder, tapering to the wrist, with a twist of lighter vine, two tendrils, thorns and a hooked hand. */
 function drawArm(ctx: Ctx, shoulder: Pt, elbow: Pt, hand: Pt, alpha: number, side: 1 | -1): void {
   if (alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const trace = (): void => {
-    ctx.beginPath();
-    ctx.moveTo(shoulder[0], shoulder[1]);
-    ctx.quadraticCurveTo(elbow[0] - side * 8, elbow[1] + 6, elbow[0], elbow[1]);
-    ctx.quadraticCurveTo(elbow[0] + (hand[0] - elbow[0]) * 0.4 + 6, elbow[1] + (hand[1] - elbow[1]) * 0.6, hand[0], hand[1]);
+  const STEPS = 28;
+  const pts: Pt[] = [];
+  for (let i = 0; i <= STEPS; i++) pts.push(armPoint(shoulder, elbow, hand, side, i / STEPS));
+  // The width falls from the shoulder to the wrist.
+  const widthAt = (u: number): number => lerp(27, 8, u ** 0.8);
+  const run = (colour: string, scale: number, dx: number, dy: number, shrink = 0): void => {
+    ctx.strokeStyle = colour;
+    for (let i = 0; i < STEPS; i++) {
+      const u = i / STEPS;
+      ctx.lineWidth = Math.max(1.4, widthAt(u) * scale - shrink);
+      ctx.beginPath();
+      ctx.moveTo(pts[i]![0] + dx, pts[i]![1] + dy);
+      ctx.lineTo(pts[i + 1]![0] + dx, pts[i + 1]![1] + dy);
+      ctx.stroke();
+    }
   };
-  ctx.strokeStyle = '#14180d';
-  ctx.lineWidth = 11;
-  trace();
-  ctx.stroke();
-  ctx.strokeStyle = MOSS_DARK;
-  ctx.lineWidth = 6.5;
-  trace();
-  ctx.stroke();
-  // Moon rim on the upper edge.
-  ctx.strokeStyle = withAlpha(RIM, 0.55);
-  ctx.lineWidth = 1.3;
-  ctx.save();
-  ctx.translate(1.5, -3);
-  trace();
-  ctx.stroke();
-  ctx.restore();
+  run('#0f130a', 1, 0, 0);
+  run('#3a4c22', 0.74, 0, 0);
+  // A twist of lighter vine winding round it, so it reads as rope and not a tube.
+  ctx.strokeStyle = '#5d7336';
+  for (let i = 0; i < STEPS; i++) {
+    const u = i / STEPS;
+    const [x0, y0] = pts[i]!;
+    const [x1, y1] = pts[i + 1]!;
+    const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+    const nx = -(y1 - y0) / len;
+    const ny = (x1 - x0) / len;
+    const o0 = Math.sin(u * Math.PI * 7) * widthAt(u) * 0.28;
+    const o1 = Math.sin((u + 1 / STEPS) * Math.PI * 7) * widthAt(u + 1 / STEPS) * 0.28;
+    ctx.lineWidth = Math.max(1.2, widthAt(u) * 0.2);
+    ctx.beginPath();
+    ctx.moveTo(x0 + nx * o0, y0 + ny * o0);
+    ctx.lineTo(x1 + nx * o1, y1 + ny * o1);
+    ctx.stroke();
+  }
+  // Moon rim along the upper edge.
+  ctx.globalAlpha = alpha * 0.6;
+  run(RIM, 0.12, 1.2, -widthAt(0.4) * 0.35);
+  ctx.globalAlpha = alpha;
+  // The shoulder: a knot of vine where the arm joins the cloak.
+  ctx.fillStyle = '#0f130a';
+  ctx.beginPath();
+  ctx.ellipse(shoulder[0], shoulder[1], 18, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#3a4c22';
+  ctx.beginPath();
+  ctx.ellipse(shoulder[0] - 1, shoulder[1] - 1, 13, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Two tendrils curling off the forearm.
+  ctx.strokeStyle = '#0f130a';
+  ctx.lineWidth = 2.6;
+  for (const [at, dir] of [[0.45, -1], [0.72, 1]] as const) {
+    const [px, py] = pts[Math.round(at * STEPS)]!;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.bezierCurveTo(px + dir * 6, py - 14, px + dir * 24, py - 16, px + dir * 22, py - 2);
+    ctx.bezierCurveTo(px + dir * 21, py + 6, px + dir * 12, py + 4, px + dir * 14, py - 3);
+    ctx.stroke();
+  }
   // Thorns along the forearm.
-  ctx.fillStyle = '#14180d';
+  ctx.fillStyle = '#0f130a';
   for (let i = 1; i <= 4; i++) {
     const u = i / 5;
     const px = lerp(elbow[0], hand[0], u);
@@ -299,15 +476,27 @@ function drawArm(ctx: Ctx, shoulder: Pt, elbow: Pt, hand: Pt, alpha: number, sid
     ctx.lineTo(px + 3, py + 1);
     ctx.fill();
   }
-  // Three hooked fingers.
-  ctx.strokeStyle = '#14180d';
-  ctx.lineWidth = 3.2;
+  // Three long hooked fingers, fanned, each bending twice and ending in a claw.
   const dx = Math.sign(hand[0] - elbow[0]) || -side;
+  ctx.strokeStyle = '#0f130a';
   for (let f = -1; f <= 1; f++) {
+    const spread = f * 0.42;
+    const ang = Math.atan2(hand[1] - elbow[1], hand[0] - elbow[0]) + spread;
+    const ca = Math.cos(ang);
+    const sa = Math.sin(ang);
+    const hx = hand[0];
+    const hy = hand[1];
+    const L = 30 - Math.abs(f) * 4;
+    ctx.lineWidth = 4.6;
     ctx.beginPath();
-    ctx.moveTo(hand[0], hand[1]);
-    ctx.quadraticCurveTo(hand[0] + dx * 18, hand[1] + f * 10 - 6, hand[0] + dx * 22, hand[1] + f * 13 + 8);
-    ctx.quadraticCurveTo(hand[0] + dx * 18, hand[1] + f * 13 + 16, hand[0] + dx * 12, hand[1] + f * 12 + 12);
+    ctx.moveTo(hx, hy);
+    ctx.quadraticCurveTo(hx + ca * L * 0.6, hy + sa * L * 0.6, hx + ca * L, hy + sa * L);
+    ctx.stroke();
+    // The hook: the tip turns back toward the palm.
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(hx + ca * L, hy + sa * L);
+    ctx.quadraticCurveTo(hx + ca * (L + 8) - sa * dx * 3, hy + sa * (L + 8) + ca * dx * 3 + 4, hx + ca * (L - 2) - sa * dx * 11, hy + sa * (L - 2) + ca * dx * 11 + 5);
     ctx.stroke();
   }
   ctx.restore();
@@ -467,7 +656,7 @@ export function drawPumpkinKing(ctx: Ctx, x: number, groundY: number, pose: Boss
   blit(ctx, 'king-cloak', CLOAK_W, CLOAK_H, -CLOAK_OX, -CLOAK_OY, paintCloak);
   ctx.restore();
 
-  const shoulderY = -206 + crouch * 0.8 + down * 150;
+  const shoulderY = -196 + crouch * 0.8 + down * 150;
   const armAlpha = 1 - down;
   const droop = down * 90;
   const head = {
@@ -477,9 +666,9 @@ export function drawPumpkinKing(ctx: Ctx, x: number, groundY: number, pose: Boss
   };
 
   // The back arm, then the head, then the front arm.
-  drawArm(ctx, [40, shoulderY], [body.right.elbow[0], body.right.elbow[1] + crouch * 0.5 + droop], [body.right.hand[0], body.right.hand[1] + crouch * 0.4 + droop], armAlpha, 1);
+  drawArm(ctx, [86, shoulderY], [body.right.elbow[0], body.right.elbow[1] + crouch * 0.5 + droop], [body.right.hand[0], body.right.hand[1] + crouch * 0.4 + droop], armAlpha, 1);
   drawHead(ctx, head.x, head.y, head.tilt, pose, glow);
-  drawArm(ctx, [-40, shoulderY], [body.left.elbow[0], body.left.elbow[1] + crouch * 0.5 + droop], [body.left.hand[0], body.left.hand[1] + crouch * 0.4 + droop], armAlpha, -1);
+  drawArm(ctx, [-86, shoulderY], [body.left.elbow[0], body.left.elbow[1] + crouch * 0.5 + droop], [body.left.hand[0], body.left.hand[1] + crouch * 0.4 + droop], armAlpha, -1);
 
   drawPile(ctx, down);
 
