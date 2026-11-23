@@ -68,8 +68,8 @@ export function levelEvents(level: Level, timingOverrides: Partial<Timing> = {})
       const at = bar * BAR_SECONDS;
       const next = presses.find((p) => p > at);
       const tension = next === undefined ? 0.1 : Math.max(0, Math.min(1, 1 - (next - at) / TENSION_RUN_UP));
-      // When the beeps play under this bar, so the music can step aside for them and play out in between.
-      const reach = at + BAR_SECONDS * 1.25;
+      // When the beeps play under this bar (and the next, for notes held across), so the music can step aside for them and play out in between.
+      const reach = at + BAR_SECONDS * 2.5; // long enough for a chord held from the end of this bar's window
       const quiet = presses
         .map((p) => [p - 3 * timing.beat - QUIET_LEAD, p + QUIET_TAIL] as [number, number])
         .filter(([from, to]) => to > at && from < reach);

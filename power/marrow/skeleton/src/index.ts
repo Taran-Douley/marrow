@@ -110,4 +110,4 @@ export type { Attempt, SessionLog } from './log';
 export type { Run, RunSnapshot } from './run';
 export type { ThemeTokens } from './theme';
 export type { Character, Signature, SpeakerView } from './types';
-export type { ChannelId, Profile, ProfilePatch, SemanticEvent, OutputCommand, EventPresentation, Speed, SoundShape, SpeechMode, SpeechTone, AnnounceLevel, Priority, Wave } from './types';
+export type { ChannelId, Profile, ProfilePatch, SemanticEvent, OutputCommand, EventPresentation, Speed, SoundShape, Instrument, SpeechMode, SpeechTone, AnnounceLevel, Priority, Wave } from './types';

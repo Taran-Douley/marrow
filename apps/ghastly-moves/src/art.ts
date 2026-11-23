@@ -1,5 +1,6 @@
 import { PULSE_MAX_ALPHA } from '@marrow/skeleton';
 import type { Scenery } from './stages';
+import { drawPatchLayers, drawPatchSky } from './patch';
 
 // The look of the game, all drawn in code with canvas shapes. A gradient night sky, a moon with a soft
 // glow, layers of silhouettes that drift at different speeds (parallax), a ground with texture, a ghost
@@ -192,10 +193,16 @@ export interface ArtState {
   flat: boolean;
   background: string;
   groundY: number;
+  /** The boss's arena: a bigger moon and a ring of dead cornstalks (the Pumpkin Patch only). */
+  arena?: boolean;
 }
 
 /** The night sky: a gradient, a few still stars, and the moon with its glow. */
 export function drawSky(ctx: CanvasRenderingContext2D, s: ArtState): void {
+  if (s.scenery === 'patch' && !s.flat) {
+    drawPatchSky(ctx, s);
+    return;
+  }
   const [top, horizon] = SKY[s.scenery];
   ctx.fillStyle = s.flat ? s.background : linear(ctx, 0, 0, 0, s.groundY, [{ at: 0, colour: top }, { at: 1, colour: horizon }]);
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -379,6 +386,10 @@ function tile(offset: number, period: number, draw: (shift: number) => void): vo
 /** Silhouette layers in three depths. They drift at different speeds, and stand still when motion is reduced. */
 export function drawLayers(ctx: CanvasRenderingContext2D, s: ArtState): void {
   if (s.flat) return;
+  if (s.scenery === 'patch') {
+    drawPatchLayers(ctx, s);
+    return;
+  }
   const [far, mid, near] = LAYER[s.scenery];
   const scroll = s.reducedMotion ? 0 : s.t * s.pxPerSec;
   const base = s.groundY;
@@ -469,6 +480,23 @@ export interface GhostLook {
   pulse: number;
   lantern: string;
   line: string;
+  /** Where the floor is, for a soft shadow under the ghost. Left out when the ghost hangs from a ceiling. */
+  groundY?: number;
+}
+
+/** A soft dark halo behind an obstacle, so it stays the clearest thing on screen whatever the scenery does. */
+export function drawObstacleHalo(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(1, ry / rx);
+  ctx.fillStyle = radial(ctx, 0, 0, rx * 0.3, rx, [
+    { at: 0, colour: 'rgba(3, 4, 14, 0.55)' },
+    { at: 1, colour: 'rgba(3, 4, 14, 0)' },
+  ]);
+  ctx.beginPath();
+  ctx.arc(0, 0, rx, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 /**
@@ -492,6 +520,18 @@ export function drawGhost(ctx: CanvasRenderingContext2D, g: GhostLook): void {
   ctx.fill();
   ctx.restore();
 
+  // A soft shadow on the ground: smaller and paler the higher the ghost is.
+  if (g.groundY !== undefined) {
+    const height = Math.max(0, g.groundY - 34 - g.y);
+    const k = Math.max(0.35, 1 - height / 220);
+    ctx.save();
+    ctx.fillStyle = withAlpha('#000000', 0.38 * k);
+    ctx.beginPath();
+    ctx.ellipse(g.x, g.groundY + 3, w * 1.05 * k, 5 * k + 1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   ctx.save();
   ctx.globalAlpha = g.faded ? 0.45 : 1;
   // Body: a rounded top and a wavy hem.
@@ -511,6 +551,13 @@ export function drawGhost(ctx: CanvasRenderingContext2D, g: GhostLook): void {
   ctx.fill();
   ctx.strokeStyle = g.line;
   ctx.lineWidth = 2;
+  ctx.stroke();
+  // Rim light from the moon, on the upper right edge.
+  ctx.strokeStyle = withAlpha('#c9d4ff', 0.9);
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(g.x + w * 0.1, g.y - 30);
+  ctx.bezierCurveTo(g.x + w * 0.75, g.y - 31, g.x + w + 3, g.y - 20, g.x + w + 1, g.y + 16);
   ctx.stroke();
   // Eyes and a small round mouth.
   ctx.fillStyle = '#14101f';

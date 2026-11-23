@@ -292,6 +292,8 @@ function withBand(event: SemanticEvent): SemanticEvent {
 /** The boss's state while a fight is on. Every right move is a hit. At zero the boss falls. */
 let boss: BossState | null = null;
 let bossDown = false;
+/** How long the last hit's collapse is shown before the fight ends: the King falls slowly into his pile. */
+const BOSS_FALL_MS = 2600;
 
 /** The boss reacts to the fight: it throws as each projectile comes, groans when hit, laughs at a mistake. */
 function bossReacts(event: SemanticEvent, now: number): void {
@@ -734,7 +736,7 @@ function frame(): void {
     trackBest(lastSnapshot);
     sendTells(lastSnapshot.t);
     // The boss falls as soon as its last hit has landed; otherwise the fight ends with the level.
-    if (bossDown && boss && now - boss.hurtAt > 700) {
+    if (bossDown && boss && now - boss.hurtAt > BOSS_FALL_MS) {
       adapter.cancelPending();
       finish();
     } else if (lastSnapshot.phase === 'done') finish();

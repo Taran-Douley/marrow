@@ -1,5 +1,6 @@
 import { moveAt, pulseAt, sectionAt, sideBefore, themeFor, type Kit, type Level, type Move, type Obstacle, type Profile, type RunSnapshot } from '@marrow/skeleton';
-import { drawGhost, drawGround, drawLayers, drawObstacleGlow, drawPortalGate, drawSky, type ArtState } from './art';
+import { drawGhost, drawGround, drawLayers, drawObstacleGlow, drawObstacleHalo, drawPortalGate, drawSky, type ArtState } from './art';
+import { drawMound, drawPatchFront, MOUND_HEIGHT } from './patch';
 import { throwByName, type BossPattern } from './pattern';
 import { drawBoss, drawHealth } from './boss';
 import { drawItem } from './map';
@@ -78,6 +79,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
     flat: profile.theme === 'high-contrast',
     background: theme.background,
     groundY: GROUND_Y,
+    arena: scene.boss?.look === 'pumpkin',
   };
   // Sky, moon, three layers of scenery, and the ground. All of it is dim behind the obstacles.
   drawSky(ctx, art);
@@ -89,7 +91,17 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
 
   const boss = scene.boss;
   if (boss) {
-    drawBoss(ctx, boss.look, BOSS_X, GROUND_Y, {
+    // The tell and the throw tell the Pumpkin King what to do with his arms: the part of the song says which kind is coming.
+    const part = scene.level ? sectionAt(scene.level, t) : undefined;
+    const kindOf = (id: string) => scene.pattern?.throws.find((k) => k.id === id)?.motion;
+    const tellMotion = part?.name.startsWith('Tell ') ? kindOf(part.name.slice(5)) : undefined;
+    const volleyMotion = part?.name.startsWith('Volley ') ? kindOf(part.name.slice(7)) : undefined;
+    const raised = boss.look === 'pumpkin';
+    if (raised) drawMound(ctx, BOSS_X, GROUND_Y);
+    drawBoss(ctx, boss.look, BOSS_X, raised ? GROUND_Y - MOUND_HEIGHT : GROUND_Y, {
+      ...(tellMotion && part ? { windup: { motion: tellMotion, u: Math.min(1, Math.max(0, (t - part.from) / Math.max(1e-6, part.to - part.from))) } } : {}),
+      ...(volleyMotion ? { throwMotion: volleyMotion } : {}),
+      ...(boss.health === 0 ? { down: Math.min(1, Math.max(0, (scene.nowMs - boss.hurtAt - 250) / 2000)) } : {}),
       throwing: scene.nowMs - boss.throwAt < 350 ? (scene.nowMs - boss.throwAt) / 350 : 0,
       hurt: freshness(scene.nowMs, boss.hurtAt, 450),
       laughing: freshness(scene.nowMs, boss.laughAt, 900),
@@ -140,6 +152,8 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
       const w = o.width * PX_PER_SEC;
       if (x > WIDTH + 20 || x + w < -20) continue;
       // Every obstacle swells softly on the beat, the same for a target and a dud.
+      // A soft dark halo, so a stone is the clearest thing on screen however busy the scenery behind it is.
+      if (!art.flat) drawObstacleHalo(ctx, x + w / 2, GROUND_Y - 40, w / 2 + 52, 78);
       if (pulse > 0) drawObstacleGlow(ctx, art, x + w / 2, GROUND_Y - 50, 54);
       if ((o.move ?? 'jump') !== 'jump') {
         drawMoveObstacle(ctx, kit, level, o, x, w, GHOST_X - half, theme.line);
@@ -176,8 +190,10 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
     ctx.translate(0, gy * 2);
     ctx.scale(1, -1);
   }
-  drawGhost(ctx, { x: GHOST_X, y: gy, halfWidth: half, nowMs: scene.nowMs, reducedMotion: profile.reducedMotion, faded: scene.falling, streak, pulse, lantern: theme.amber, line: theme.text });
+  drawGhost(ctx, { x: GHOST_X, y: gy, halfWidth: half, nowMs: scene.nowMs, reducedMotion: profile.reducedMotion, faded: scene.falling, streak, pulse, lantern: theme.amber, line: theme.text, ...(pose.upsideDown ? {} : { groundY: GROUND_Y }) });
   ctx.restore();
+  // The foreground silhouettes pass in front, at the edges, and the vignette closes the corners.
+  if (art.scenery === 'patch') drawPatchFront(ctx, art);
 
   // In a song: the move and the part in words, and the beat as four dots, the one now filled. The edge
   // glows on the first beat of each bar (once a bar, never a flicker); with reduced motion only the dots show it.
@@ -188,7 +204,9 @@ export function drawScene(ctx: CanvasRenderingContext2D, kit: Kit, profile: Prof
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.font = `${Math.round(18 * Math.min(profile.textScale, 1.4))}px ${FONT}`;
-    ctx.fillText(`${MOVE_WORDS[moveNow]}${part ? `. ${part.name}` : ''}`, WIDTH / 2, 50);
+    // In a boss fight the health bar sits here, and the part names ("Tell lob") are for the code, not the
+    // player: the tell's own caption says what is coming.
+    if (!boss) ctx.fillText(`${MOVE_WORDS[moveNow]}${part ? `. ${part.name}` : ''}`, WIDTH / 2, 50);
   }
 
   // The judgement as a word above the ghost. With reduced motion it stays still, then goes.

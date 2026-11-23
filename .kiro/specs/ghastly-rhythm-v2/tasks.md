@@ -23,3 +23,11 @@ Stage 1 has no portals by design: it teaches the beat. Portals already exist per
 - [x] 12. Beat pulses on the obstacles, and a pulse per stage look. Done: `PULSE_LOOK` in `art.ts` (a colour and a sky, horizon or ground wash for each place) and a halo behind every obstacle, all at most `PULSE_MAX_ALPHA`, none with reduced motion. No extra scenery layers: the existing three per place already match each Scenery.
 - [x] 13. Per-stage best on the story map. Done: the map, the stage list and the scanning menu say "Best run 62%. Boss best 40%." (`bestWords` in `progress.ts`).
 - [ ] 14. Tune the songs, tells and bomb pitches with real players, including blind players
+
+## Stage 1 redo
+
+- [x] 15. Music engine in code: plucked string, keys, pad, sub, choir, synthesised drums, owl and creak, reverb send, music bus with muffle and duck, stems that join with the streak, boss phase 2 (`skeleton/src/adapters/web/sound.ts`, `channels/track.ts`, `channels/audio.ts`); Stage 1 track in A minor, i-VI-III-VII, plus a heavier Pumpkin King version (`src/tracks.ts`). Tests in `skeleton/test/band.test.ts`. Not tried by ear.
+- [x] 16. Stage 1 art: five layers, fog, moon shafts, particles, rim light, foreground silhouettes, vignette, cached layers (`src/patch.ts`, `src/gfx.ts`); stone and ghost reworked with rim light and soft shadow; obstacle halo.
+- [x] 17. The Pumpkin King designed and drawn, with poses tied to the tells, and the arena (`src/king.ts`; design note in design.md).
+- [ ] 18. Later: bring-your-own licensed tracks per stage (beat map, preservesPitch, cues above, offline cache, licence file). See design.md. Not built.
+- [ ] 19. Play Stage 1 and tune: colours, the King's proportions, the mix. Stages 2 to 7 follow after the user plays it.

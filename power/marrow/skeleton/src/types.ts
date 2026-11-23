@@ -43,6 +43,12 @@ export type SoundRole =
   | 'effect';
 export type Wave = 'sine' | 'triangle' | 'square';
 
+/**
+ * Instruments the web player can synthesise (no sample files): a plucked string, soft keys, a warm
+ * pad, a sub bass, drums (kick, brushed snare, soft hat, shaker), a faint choir, and two far-off sounds.
+ */
+export type Instrument = 'pluck' | 'keys' | 'pad' | 'sub' | 'kick' | 'snare' | 'hat' | 'shaker' | 'choir' | 'owl' | 'creak';
+
 /** Optional shaping for a sound. Without it, a sound is a short plain beep. */
 export interface SoundShape {
   /** Make filtered noise instead of a tone. `hz` and `wave` are then ignored. */
@@ -62,6 +68,11 @@ export interface SoundShape {
   echo?: number;
   /** How long the echo rings on, in seconds: about 0.4 in a cupboard, 3 in a chapel. Default 1.5. */
   echoSeconds?: number;
+  /**
+   * An instrument for the web player to build the sound from, instead of a plain tone. A player that
+   * does not know the instrument plays the plain `wave` and the rest of the shape, so nothing is lost.
+   */
+  voice?: Instrument;
   /** A slow wobble in pitch (vibrato), this many times a second. Tones only. */
   wobbleHz?: number;
   /** How far the wobble goes, as a share of the pitch: 0.03 is a little, 0.1 is a moan. */
