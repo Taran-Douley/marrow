@@ -228,6 +228,27 @@ function pauldron(c: Ctx, cx: number, y: number, side: number, rattle: number): 
   c.stroke();
 }
 
+const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
+
+/** The gorget: a stack of steel collar bands from under the helm out to the shoulders, so the helm never floats. */
+function gorget(c: Ctx, top: number, alpha: number): void {
+  if (alpha <= 0) return;
+  c.save();
+  c.globalAlpha *= alpha;
+  c.fillStyle = IRON;
+  c.beginPath();
+  c.moveTo(-40, top - 22);
+  c.lineTo(40, top - 22);
+  c.lineTo(84, top + 26);
+  c.lineTo(-84, top + 26);
+  c.closePath();
+  c.fill();
+  plate(c, -42, top - 18, 84, 14, STEEL_D);
+  plate(c, -56, top - 6, 112, 14, STEEL);
+  plate(c, -72, top + 6, 144, 16, STEEL_D);
+  c.restore();
+}
+
 /** The great helm: a flat-topped box with a cross-shaped visor that burns, rivets, and a ring of short spikes. */
 function helm(c: Ctx, pose: BossPose, glow: number, open: number): void {
   const w = 58;
@@ -472,7 +493,9 @@ export function drawGatekeeper(ctx: Ctx, x: number, groundY: number, pose: BossP
   ctx.save();
   ctx.translate(0, sink + breathe);
   ctx.scale(1, lerp(1, 0.4, down));
+  ctx.globalAlpha *= clamp01(1 - down * 2.2);
   torso(ctx, glow, heave, rattle);
+  gorget(ctx, -240 + heave, 1 - down * 2);
   pauldron(ctx, -104, -246 + heave, -1, rattle);
   pauldron(ctx, 104, -246 + heave, 1, rattle);
   ctx.restore();
@@ -483,20 +506,17 @@ export function drawGatekeeper(ctx: Ctx, x: number, groundY: number, pose: BossP
   const shoulderL: Pt = [SHOULDER_L[0], SHOULDER_L[1] + sink];
   const shoulderR: Pt = [SHOULDER_R[0], SHOULDER_R[1] + sink];
   drawArm(ctx, shoulderR, lift(body.right.elbow), lift(body.right.hand), 1 - down, 0);
-  // The helm sits on the shoulders; it tips back when he laughs, and falls off to the left when he is beaten.
-  // A gorget joins the helm to the shoulders.
-  if (down < 0.5) {
-    ctx.save();
-    ctx.globalAlpha = 1 - down * 2;
-    plate(ctx, -40, -262 + crouch + sink * 0.1 + breathe, 80, 30, STEEL_D);
-    ctx.restore();
-  }
-  const hx = lerp(0, -110, down * down);
-  const hy = lerp(-262 + crouch + breathe + sink * 0.1, -26, down * down);
-  const tilt = lerp(body.tilt + (pose.laughing > 0.1 ? -0.16 : 0) + (pose.hurt > 0.1 ? 0.14 * pose.hurt : 0), -1.5, down);
+  // The helm sits in the gorget on the shoulders and moves with the body; it tips a little about its base when
+  // he laughs or is hit, and falls off to the left when he is beaten.
+  const neckY = -240 + heave + sink + breathe + 4;
+  const hx = lerp(0, -70, down * down);
+  const hy = lerp(neckY, -28, down * down);
+  const lean = clamp(body.tilt * 0.3 + (pose.laughing > 0.1 ? -0.07 : 0) + (pose.hurt > 0.1 ? 0.06 * pose.hurt : 0), -0.1, 0.1);
+  const tilt = lerp(lean, -1.5, down * down);
   ctx.save();
   ctx.translate(hx, hy);
   ctx.rotate(tilt);
+  ctx.translate(0, -14);
   helm(ctx, pose, glow, pose.hurt > 0.2 ? 0 : pose.laughing > 0.1 ? 1 : 0.55);
   ctx.restore();
   const lh = lift(body.left.hand);
