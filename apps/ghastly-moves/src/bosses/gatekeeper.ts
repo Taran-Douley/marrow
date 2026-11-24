@@ -4,10 +4,10 @@ import { bodyPoseFor, groundShadow, heldItem, limb, type BodyPose, type Pt, type
 
 // The Gatekeeper, drawn in code. See "The Gatekeeper (Stage 4 redo)" in .kiro/specs/ghastly-rhythm-v2/design.md.
 //
-//   Silhouette  wide and square: a gate that walks. A flat-topped great helm on huge square pauldrons with spikes,
+//   Silhouette  wide and square: a gate that walks. A rounded, ridged great helm with a spiked crest on huge square pauldrons with spikes,
 //               a chest that is a portcullis, and a tower shield planted at his side. The opposite of the Warden's
 //               thin bars and the Witch's lopsided droop.
-//   Shape lang. Rectangles and spikes. Rivets, bars, plates. The only curves are the ring of the padlock and the
+//   Shape lang. Rectangles and spikes. Rivets, bars, plates. The curves are the helm (Path2D), the ring of the padlock and the
 //               links of the chain across his chest.
 //   Palette     near-black iron, a blue-violet steel mid, a pale steel for the lights; the one accent is furnace
 //               orange: the cross-shaped slit of his visor and the fire you see through the bars of his chest.
@@ -20,6 +20,8 @@ import { bodyPoseFor, groundShadow, heldItem, limb, type BodyPose, type Pt, type
 // heaves or flickers.
 
 const SCALE = 0.72;
+/** The helm's size against the body. At 1 it looked small on the huge pauldrons. */
+const HELM_SIZE = 1.35;
 const IRON = '#0b0c1a';
 const STEEL_D = '#1c1f36';
 const STEEL = '#2c3050';
@@ -249,65 +251,162 @@ function gorget(c: Ctx, top: number, alpha: number): void {
   c.restore();
 }
 
-/** The great helm: a flat-topped box with a cross-shaped visor that burns, rivets, and a ring of short spikes. */
+/** The helm's outline, drawn with curves: a rounded, slightly peaked crown, sides that bow in toward it, and cheek
+ *  plates that flare out a little at the bottom. Local coordinates: centre x = 0, crown -90, base 14. */
+function helmShape(): Path2D {
+  const p = new Path2D();
+  p.moveTo(0, -91);
+  p.bezierCurveTo(15, -91, 27, -79, 30, -58);
+  p.bezierCurveTo(32, -40, 29, -22, 29, -8);
+  p.bezierCurveTo(29, 2, 34, 9, 37, 14);
+  p.lineTo(-37, 14);
+  p.bezierCurveTo(-34, 9, -29, 2, -29, -8);
+  p.bezierCurveTo(-29, -22, -32, -40, -30, -58);
+  p.bezierCurveTo(-27, -79, -15, -91, 0, -91);
+  p.closePath();
+  return p;
+}
+
+/** The great helm: a rounded great-helm with a raised ridge, a riveted brow band, a cross-shaped visor that burns,
+ *  breathing holes, flared cheek plates and a short crest of spikes. Lit by the moon from the right. */
 function helm(c: Ctx, pose: BossPose, glow: number, open: number): void {
-  const w = 58;
-  const top = -78;
-  const bottom = 14;
-  c.fillStyle = IRON;
-  c.fillRect(-w / 2 - 4, top - 4, w + 8, bottom - top + 8);
-  plate(c, -w / 2, top, w, bottom - top, STEEL);
-  // The brow band and the chin plate.
-  plate(c, -w / 2 - 4, top + 8, w + 8, 10, STEEL_D);
-  plate(c, -w / 2 + 6, bottom - 18, w - 12, 18, STEEL_D);
-  // Short spikes on the crown.
-  c.fillStyle = STEEL_L;
-  for (let k = -2; k <= 2; k++) {
-    c.beginPath();
-    c.moveTo(k * 11 - 4, top);
-    c.lineTo(k * 11, top - 14 - (k === 0 ? 8 : 0));
-    c.lineTo(k * 11 + 4, top);
-    c.closePath();
-    c.fill();
-  }
-  // The visor, a cross that burns.
   const hot = clamp01(glow);
-  const thick = lerp(2.2, 6.4, open);
-  c.fillStyle = radial(c, 0, -22, 2, 46, [
-    { at: 0, colour: withAlpha(FIRE, 0.5 * hot) },
+  const shape = helmShape();
+  // Crest first, so it stands behind the crown: short curved iron spikes along the ridge.
+  c.fillStyle = IRON;
+  c.strokeStyle = IRON;
+  c.lineWidth = 3;
+  const spikes: Array<[number, number, number]> = [[-14, 17, -0.5], [0, 24, 0], [14, 18, 0.5]];
+  for (const [sx, len, lean] of spikes) {
+    const base = -86 + Math.abs(sx) * 0.25;
+    const spike = new Path2D();
+    spike.moveTo(sx - 4.5, base + 2);
+    spike.quadraticCurveTo(sx - 3 + lean * 5, base - len * 0.6, sx + lean * 12, base - len);
+    spike.quadraticCurveTo(sx + 3 + lean * 5, base - len * 0.5, sx + 4.5, base + 2);
+    spike.closePath();
+    c.fill(spike);
+    c.stroke(spike);
+    c.fillStyle = STEEL_L;
+    c.fill(spike);
+    c.fillStyle = IRON;
+  }
+  // The body: dark iron outline, then a shaded-to-lit sweep across it so it reads as round.
+  c.fillStyle = IRON;
+  c.strokeStyle = IRON;
+  c.lineWidth = 5;
+  c.stroke(shape);
+  const sweep = c.createLinearGradient(-32, 0, 32, 0);
+  sweep.addColorStop(0, '#0e1020');
+  sweep.addColorStop(0.35, STEEL_D);
+  sweep.addColorStop(0.75, STEEL);
+  sweep.addColorStop(1, STEEL_L);
+  c.fillStyle = sweep;
+  c.fill(shape);
+
+  c.save();
+  c.clip(shape);
+  // The ember light leaking out of the visor, over the face of the helm.
+  c.fillStyle = radial(c, 0, -26, 2, 44, [
+    { at: 0, colour: withAlpha(FIRE, 0.42 * hot) },
     { at: 1, colour: withAlpha(FIRE, 0) },
   ]);
+  c.fillRect(-40, -92, 80, 110);
+  // A soft shade down the dark (left) side and under the crown's curve.
+  const shade = c.createLinearGradient(-32, 0, -4, 0);
+  shade.addColorStop(0, withAlpha('#000000', 0.45));
+  shade.addColorStop(1, withAlpha('#000000', 0));
+  c.fillStyle = shade;
+  c.fillRect(-34, -92, 32, 110);
+  // Cheek plates: a curved seam each side below the slit, and a heavier chin band.
+  c.strokeStyle = withAlpha('#05050f', 0.8);
+  c.lineWidth = 1.8;
+  for (const s of [-1, 1]) {
+    c.beginPath();
+    c.moveTo(s * 7, -20);
+    c.bezierCurveTo(s * 14, -14, s * 20, -8, s * 24, 14);
+    c.stroke();
+  }
+  c.fillStyle = withAlpha('#000000', 0.28);
   c.beginPath();
-  c.arc(0, -22, 46, 0, Math.PI * 2);
+  c.moveTo(-38, 4);
+  c.quadraticCurveTo(0, 12, 38, 4);
+  c.lineTo(38, 15);
+  c.lineTo(-38, 15);
+  c.closePath();
   c.fill();
+  // The raised ridge down the middle of the crown to the brow, with the moon on its right edge.
+  const ridge = new Path2D();
+  ridge.moveTo(-3.2, -90);
+  ridge.quadraticCurveTo(-3.6, -74, -2.6, -58);
+  ridge.lineTo(2.6, -58);
+  ridge.quadraticCurveTo(3.6, -74, 3.2, -90);
+  ridge.closePath();
+  c.fillStyle = STEEL;
+  c.fill(ridge);
+  c.fillStyle = withAlpha(RIM, 0.75);
+  c.fillRect(1.4, -88, 1.5, 30);
+  // The brow band: a curved strap across the face, riveted.
+  const band = new Path2D();
+  band.moveTo(-34, -57);
+  band.quadraticCurveTo(0, -50, 34, -57);
+  band.lineTo(34, -46);
+  band.quadraticCurveTo(0, -39, -34, -46);
+  band.closePath();
+  c.fillStyle = STEEL_D;
+  c.fill(band);
+  c.strokeStyle = withAlpha(RIM, 0.55);
+  c.lineWidth = 1.4;
+  c.beginPath();
+  c.moveTo(-34, -57);
+  c.quadraticCurveTo(0, -50, 34, -57);
+  c.stroke();
+  c.fillStyle = STEEL_L;
+  for (let k = -3; k <= 3; k++) {
+    if (k === 0) continue;
+    c.beginPath();
+    c.arc(k * 8.5, -51.5 + 3.5 * (1 - (k * 8.5 / 34) ** 2), 1.7, 0, Math.PI * 2);
+    c.fill();
+  }
+  // Breathing holes in the lit cheek.
   c.fillStyle = '#05050f';
-  c.fillRect(-w / 2 + 8, -26, w - 16, thick);
-  c.fillRect(-thick / 2, -50, thick, 52);
+  for (const [hx, hy] of [[14, -12], [20, -12], [14, -5], [20, -5], [14, 2], [20, 2]] as const) {
+    c.beginPath();
+    c.arc(hx, hy, 1.5, 0, Math.PI * 2);
+    c.fill();
+  }
+  // The visor: a cross-shaped slit that burns.
+  const thick = lerp(2.4, 6.4, open);
+  c.fillStyle = '#05050f';
+  c.fillRect(-19, -26, 38, thick);
+  c.fillRect(-thick / 2, -44, thick, 46);
   c.fillStyle = withAlpha(FIRE_HOT, 0.4 + 0.6 * hot);
-  c.fillRect(-w / 2 + 10, -26 + thick * 0.2, w - 20, thick * 0.6);
-  c.fillRect(-thick * 0.3, -48, thick * 0.6, 48);
+  c.fillRect(-17, -26 + thick * 0.2, 34, thick * 0.6);
+  c.fillRect(-thick * 0.3, -42, thick * 0.6, 42);
+  c.restore();
+
   // A dent that grows as he is hurt.
   const dent = clamp01(1 - pose.health + pose.hurt * 0.5);
   if (dent > 0.02) {
     c.strokeStyle = withAlpha('#05050f', 0.4 + dent * 0.5);
     c.lineWidth = 2;
     c.beginPath();
-    c.moveTo(14, top + 4);
-    c.lineTo(20, top + 22);
-    c.lineTo(15, top + 34);
+    c.moveTo(14, -72);
+    c.quadraticCurveTo(21, -62, 16, -52);
     c.stroke();
     if (dent > 0.5) {
       c.beginPath();
-      c.moveTo(-22, top + 20);
-      c.lineTo(-16, top + 36);
+      c.moveTo(-22, -66);
+      c.lineTo(-17, -54);
       c.stroke();
     }
   }
-  c.strokeStyle = withAlpha(RIM, 0.7);
+  // The moon's rim light down the right edge of the crown and cheek.
+  c.strokeStyle = withAlpha(RIM, 0.8);
   c.lineWidth = 1.8;
   c.beginPath();
-  c.moveTo(w / 2, top);
-  c.lineTo(w / 2, bottom);
+  c.moveTo(14, -89);
+  c.bezierCurveTo(24, -85, 29, -72, 30, -58);
+  c.bezierCurveTo(32, -40, 29, -22, 29, -8);
   c.stroke();
 }
 
@@ -516,6 +615,8 @@ export function drawGatekeeper(ctx: Ctx, x: number, groundY: number, pose: BossP
   ctx.save();
   ctx.translate(hx, hy);
   ctx.rotate(tilt);
+  // Bigger than drawn, so it holds its own on the wide body. Scaled about its base, so it still sits in the gorget.
+  ctx.scale(HELM_SIZE, HELM_SIZE);
   ctx.translate(0, -14);
   helm(ctx, pose, glow, pose.hurt > 0.2 ? 0 : pose.laughing > 0.1 ? 1 : 0.55);
   ctx.restore();
