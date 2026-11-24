@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createKit, cuesAudible, trackClearOfCues, validateTrack, type TrackSpec } from '../src';
 import { BED_SHARE } from '../src/channels/audio';
-import { TRACK_CEILING_HZ, TRACK_LEVELS, trackCeilingHz, trackNotes } from '../src/channels/track';
+import { TRACK_BASE_SHARE, TRACK_CEILING_HZ, TRACK_LEVELS, trackCeilingHz, trackNotes } from '../src/channels/track';
 import { DEFAULT_TIMING, idealPress } from '../src/level';
 import { defaultProfile } from '../src/profile';
-import { createSoundPlayer, type AudioContextLike, type SoundCommand } from '../src/adapters/web/sound';
+import { MUSIC_BUS_GAIN, MUSIC_DUCK, createSoundPlayer, type AudioContextLike, type SoundCommand } from '../src/adapters/web/sound';
 import type { OutputCommand } from '../src/types';
 
 // The band: instruments, chords, a spooky bed, stems that join with a streak, and a second phase.
@@ -118,22 +118,24 @@ describe('the band builds with the streak', () => {
     };
   };
 
-  it('starts with the bed and the drums, then adds bass and chords, then the string, then the tune', () => {
+  it('plays the whole groove from the first bar, then the streak brings the string and lifts the body to full', () => {
     const s0 = layers(0);
+    // Bed, drums, bass, chords and the theme melody are all there at streak 0 (the theme is heard in the first bars).
     expect(s0.drums).toBeGreaterThan(0);
     expect(s0.bed).toBeGreaterThan(0);
-    expect(s0.bass + s0.pluck + s0.melody).toBe(0);
-    expect(s0.chords).toBeGreaterThan(0); // the bed's own drone pad; the chords themselves wait
-    const s2 = layers(2);
-    expect(s2.bass).toBeGreaterThan(0);
-    expect(s2.chords).toBeGreaterThan(s0.chords);
-    expect(s2.pluck + s2.melody).toBe(0);
-    const s4 = layers(4);
-    expect(s4.pluck).toBeGreaterThan(0);
-    expect(s4.melody).toBe(0);
-    expect(layers(6).melody).toBeGreaterThan(0);
+    expect(s0.bass).toBeGreaterThan(0);
+    expect(s0.melody).toBeGreaterThan(0);
+    expect(s0.chords).toBeGreaterThan(0);
+    expect(s0.pluck).toBe(0); // the extra colour waits for the streak
+    const firstMelody = voices(win({ tension: 0.1, streak: 0 }), 'keys')[0]!;
+    expect(firstMelody.at).toBeLessThan(8 * 8 * 0.2); // within the first 8 bars
+    expect(layers(4).pluck).toBeGreaterThan(0);
+    // The body is at a share of full at streak 0 and at full once the streak is in.
+    const gain = (streak: number) => Math.max(...voices(win({ tension: 0.1, streak }), 'keys').map((n) => n.gain));
+    expect(gain(0)).toBeCloseTo(gain(6) * TRACK_BASE_SHARE, 6);
+    const bassGain = (streak: number) => Math.max(...voices(win({ tension: 0.1, streak }), 'sub').filter((n) => n.shape?.filterHz === 650).map((n) => n.gain));
+    expect(bassGain(0)).toBeCloseTo(bassGain(2) * TRACK_BASE_SHARE, 6);
   });
-
   it('plays every layer when no streak is given, which is the worst case the proofs measure', () => {
     const all = layers(undefined);
     expect(all.bass).toBeGreaterThan(0);
@@ -276,7 +278,7 @@ const music = (voice: SoundCommand['shape'], hz = 110): SoundCommand => ({
 });
 
 describe('the web player builds the instruments', () => {
-  const all = ['pluck', 'keys', 'pad', 'sub', 'kick', 'snare', 'hat', 'shaker', 'choir', 'owl', 'creak'] as const;
+  const all = ['pluck', 'keys', 'pad', 'sub', 'kick', 'snare', 'hat', 'shaker', 'choir', 'owl', 'creak', 'timpani', 'taiko', 'brass', 'organ', 'bell', 'gong', 'riser'] as const;
 
   it('makes every instrument without throwing, and tracks it so Escape can silence it', () => {
     for (const voice of all) {
@@ -356,8 +358,9 @@ describe('the web player builds the instruments', () => {
     player.play(music({ voice: 'sub' }), 0, false);
     ramps.length = 0;
     player.duck(true);
-    expect(ramps.at(-1)).toBeCloseTo(0.33, 6);
+    expect(ramps.at(-1)).toBeCloseTo(MUSIC_DUCK * MUSIC_BUS_GAIN, 6); // 6 dB down
+    expect(MUSIC_DUCK).toBeCloseTo(10 ** (-6 / 20), 1);
     player.duck(false);
-    expect(ramps.at(-1)).toBe(1);
+    expect(ramps.at(-1)).toBe(MUSIC_BUS_GAIN);
   });
 });

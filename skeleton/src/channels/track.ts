@@ -61,15 +61,38 @@ export interface TrackSpec {
    */
   bed?: boolean;
   /**
-   * With a streak, the band builds: the bass and chords join at `bass`, the pluck at `pluck`, the
-   * melody at `melody`. Drums and the bed play from the start. Without `stems` every layer plays always.
+   * The whole groove plays from the first bar: bed, drums, bass, chords and the theme melody. With a
+   * streak the band adds to it: the bass and chords come up to full at `bass`, the melody to full at
+   * `melody`, and the plucked string joins at `pluck`. Before that the bass, chords and melody play at
+   * TRACK_BASE_SHARE of their level. Without `stems` every layer plays in full always.
    */
   stems?: { bass?: number; pluck?: number; melody?: number };
+  /**
+   * The doom layer of a boss fight: a sub drone that swells, a low brass or organ pad through a closing
+   * low-pass, slow war drums on the downbeats, a dissonant choir cluster that creeps in, a bell toll every
+   * few bars, and (in phase 2) a riser. It never plays under a cue. Phase 2 makes it heavier.
+   */
+  doom?: DoomSpec;
   /**
    * A second phase (a boss halfway down): the same grid and timing, but the key lifts by `lift`
    * semitones, and any layer given here replaces the first phase's.
    */
   phase2?: { lift?: number; kick?: readonly string[]; snare?: readonly string[]; shaker?: readonly string[]; hat?: readonly string[] };
+}
+
+export interface DoomSpec {
+  /** The sub drone, 35 to 55 Hz. It swells and fades over `swellBars` bars. */
+  droneHz: number;
+  /** Bars for one slow swell of the drone and the cluster, 4 to 32. */
+  swellBars: number;
+  /** A low pad of detuned saws (brass) or stacked pipes (organ) through a low-pass that closes over each bar. */
+  pad: { voice: 'brass' | 'organ'; hz: number; notes: readonly number[] };
+  /** War drums, in bars of 8 slots like the kick. Phase 2 plays `phase2` (more hits). */
+  drum: { voice: 'timpani' | 'taiko'; hz: number; bars: readonly string[]; phase2: readonly string[] };
+  /** A cluster of voices a few semitones apart: a minor second is 1, a tritone 6. Phase 2 adds the `open` notes. */
+  cluster: { hz: number; notes: readonly number[]; open: readonly number[] };
+  /** A low toll every `every` bars, on slot `slot` of the bar. */
+  bell: { voice: 'bell' | 'gong'; hz: number; every: number; slot: number };
 }
 
 export const TRACK_SLOTS = 8;
@@ -83,10 +106,53 @@ export const TRACK_CEILING_HZ = 264;
  * every other bed at its own share the total stays under half a beep (6 dB). `open` is used in between.
  */
 export const TRACK_LEVELS = {
-  open: { bass: 0.2, melody: 0.17, kick: 0.22, hat: 0.07, pluck: 0.15, chord: 0.05, snare: 0.12, shaker: 0.05, drone: 0.06, choir: 0.035, far: 0.05 },
+  // Louder than before (1.5 times), so the music is plainly heard between the countdowns. The web player's music
+  // bus adds 1.6 times and the default music volume is 0.85, so the ducked shares below are halved: under a
+  // countdown the music is no louder than it was, and the 6 dB rule over the beeps holds at any music volume.
+  open: {
+    bass: 0.3,
+    melody: 0.26,
+    kick: 0.33,
+    hat: 0.1,
+    pluck: 0.22,
+    chord: 0.075,
+    snare: 0.18,
+    shaker: 0.075,
+    drone: 0.09,
+    choir: 0.05,
+    far: 0.07,
+    // The doom layer of a boss.
+    doomDrone: 0.12,
+    doomPad: 0.09,
+    doomDrum: 0.42,
+    doomCluster: 0.07,
+    doomBell: 0.2,
+    doomRiser: 0.16,
+  },
   // Under a cue the new layers stay inside what is left of the 6 dB rule (see the test that adds them up).
-  ducked: { bass: 0.04, melody: 0, kick: 0.04, hat: 0.02, pluck: 0, chord: 0.004, snare: 0.012, shaker: 0.004, drone: 0.003, choir: 0, far: 0 },
+  // The doom layer is silent under a cue, so nothing of it ever sits on a countdown.
+  ducked: {
+    bass: 0.02,
+    melody: 0,
+    kick: 0.02,
+    hat: 0.01,
+    pluck: 0,
+    chord: 0.002,
+    snare: 0.006,
+    shaker: 0.002,
+    drone: 0.0015,
+    choir: 0,
+    far: 0,
+    doomDrone: 0.001,
+    doomPad: 0,
+    doomDrum: 0,
+    doomCluster: 0,
+    doomBell: 0,
+    doomRiser: 0,
+  },
 } as const;
+/** The share of a layer that plays before the streak builds the band (the layers are all there from the first bar). */
+export const TRACK_BASE_SHARE = 0.78;
 /** The quiet share, kept under its old name. */
 export const TRACK_SHARE = TRACK_LEVELS.ducked;
 
@@ -116,6 +182,7 @@ export function validateTrack(spec: TrackSpec): void {
   if (trackCeilingHz(spec) > TRACK_CEILING_HZ + 1e-9) {
     throw new Error(`${where}: with its highest note and its lift the track reaches ${Math.round(trackCeilingHz(spec))} Hz. It must stay under ${TRACK_CEILING_HZ} Hz so the beeps keep their own pitch range.`);
   }
+  if (spec.doom) validateDoom(spec.doom, where);
   for (const [name, need] of Object.entries(spec.stems ?? {})) {
     if (!(typeof need === 'number' && need >= 0 && need <= 20)) throw new Error(`${where}: stems.${name} must be a streak from 0 to 20.`);
   }
@@ -159,8 +226,37 @@ export function validateTrack(spec: TrackSpec): void {
   }
 }
 
+/** The highest doom note, in Hz (the open cluster included). */
+const doomTopHz = (d: DoomSpec): number =>
+  Math.max(
+    d.droneHz,
+    d.pad.hz * 2 ** (Math.max(...d.pad.notes) / 12),
+    d.drum.hz,
+    d.cluster.hz * 2 ** (Math.max(...d.cluster.notes, ...d.cluster.open) / 12),
+    d.bell.hz,
+  );
+
 /** The highest pitch the track can play, in Hz. The proof checks it against the beeps. */
-export const trackCeilingHz = (spec: TrackSpec): number => spec.rootHz * 2 ** ((Math.max(...spec.scale) + (spec.phase2?.lift ?? 0)) / 12);
+export const trackCeilingHz = (spec: TrackSpec): number =>
+  Math.max(spec.rootHz * 2 ** ((Math.max(...spec.scale) + (spec.phase2?.lift ?? 0)) / 12), spec.doom ? doomTopHz(spec.doom) : 0);
+
+function validateDoom(d: DoomSpec, where: string): void {
+  if (!(d.droneHz >= 35 && d.droneHz <= 55)) throw new Error(`${where}: the doom drone must be from 35 to 55 Hz, not ${d.droneHz}.`);
+  if (!(Number.isInteger(d.swellBars) && d.swellBars >= 4 && d.swellBars <= 32)) throw new Error(`${where}: doom swellBars must be a whole number from 4 to 32.`);
+  if (!(d.bell.every >= 1 && d.bell.every <= 16 && Number.isInteger(d.bell.every) && d.bell.slot >= 0 && d.bell.slot < TRACK_SLOTS && Number.isInteger(d.bell.slot))) {
+    throw new Error(`${where}: the doom bell needs a whole number of bars from 1 to 16 and a slot from 0 to 7.`);
+  }
+  if (d.pad.notes.length === 0 || d.cluster.notes.length < 2) throw new Error(`${where}: the doom pad needs a note and the cluster at least two.`);
+  for (const bars of [d.drum.bars, d.drum.phase2]) {
+    if (bars.length === 0 || bars.some((b) => !HITS.test(b))) throw new Error(`${where}: doom drum bars must be 8 characters of x, X and dots.`);
+  }
+}
+
+/** The shape of a slow swell over `bars` bars: 0 at the start, 1 in the middle, 0 at the end, as a triangle. */
+const swell = (bar: number, bars: number): number => {
+  const p = (((bar % bars) + bars) % bars) / bars;
+  return 1 - Math.abs(2 * p - 1);
+};
 
 export interface TrackWindow {
   /** The stretch of level time to fill, in running seconds: [from, to). */
@@ -190,6 +286,8 @@ export interface TrackWindow {
   streak?: number;
   /** 1 for the second phase of a track that has `phase2` (the key lifts, the drums change; the timing does not). */
   phase?: number;
+  /** Bars since phase 2 began (0 for the first), so a boss track can riser into it. Leave out when unknown. */
+  phaseBar?: number;
 }
 
 /** Song energy at which each layer joins. */
@@ -242,9 +340,13 @@ export function trackNotes(spec: TrackSpec, w: TrackWindow): OutputCommand[] {
   // The band builds with the streak, when the track says how. Without a streak (a proof, a menu) every layer plays.
   const stems = spec.stems;
   const joined = (need: number | undefined, fallback: number): boolean => stems === undefined || w.streak === undefined || w.streak >= (need ?? fallback);
-  const bassIn = joined(stems?.bass, 2);
+  // The groove is whole from the first bar: bass, chords and the theme melody are always there, at a share
+  // of their level that the streak brings up to full. Only the plucked string waits for the streak.
+  const bassIn = true;
+  const bodyShare = joined(stems?.bass, 2) ? 1 : TRACK_BASE_SHARE;
   const pluckIn = joined(stems?.pluck, 4);
-  const melodyIn = joined(stems?.melody, 6);
+  const melodyIn = true;
+  const leadShare = joined(stems?.melody, 6) ? 1 : TRACK_BASE_SHARE;
   const kickBars = phase2?.kick ?? spec.kick;
   const hatBars = phase2?.hat ?? spec.hat;
   const snareBars = phase2?.snare ?? spec.snare;
@@ -266,7 +368,7 @@ export function trackNotes(spec: TrackSpec, w: TrackWindow): OutputCommand[] {
       const b = bassBar[s]!;
       if (b >= '0' && b <= '9') {
         const span = lengthOf(bassBar, s) * slot * 0.92; // a note never runs into the next, so a layer never doubles up
-        push(t, hz(b, 0.5), spec.bassWave ?? 'square', level(TRACK_LEVELS.open.bass, TRACK_LEVELS.ducked.bass, t + span), 0, { filterHz: 650, span, ...voiced(spec.bassVoice) });
+        push(t, hz(b, 0.5), spec.bassWave ?? 'square', level(TRACK_LEVELS.open.bass, TRACK_LEVELS.ducked.bass, t + span) * bodyShare, 0, { filterHz: 650, span, ...voiced(spec.bassVoice) });
       }
     }
 
@@ -279,7 +381,7 @@ export function trackNotes(spec: TrackSpec, w: TrackWindow): OutputCommand[] {
           t,
           hz(m, 1),
           spec.melodyWave ?? 'square',
-          level(TRACK_LEVELS.open.melody, TRACK_LEVELS.ducked.melody, t + span) * melodyFade,
+          level(TRACK_LEVELS.open.melody, TRACK_LEVELS.ducked.melody, t + span) * melodyFade * leadShare,
           s % 2 === 0 ? -0.25 : 0.25,
           { filterHz: 1800, filterTo: 1200, span, ...voiced(spec.melodyVoice), ...(spec.melodyVoice ? room : {}) },
         );
@@ -306,7 +408,7 @@ export function trackNotes(spec: TrackSpec, w: TrackWindow): OutputCommand[] {
       const span = TRACK_SLOTS * slot * 1.25;
       const chord = spec.chords ? pick(spec.chords, bar) : undefined;
       if (chord && bassIn) {
-        const g = level(TRACK_LEVELS.open.chord, TRACK_LEVELS.ducked.chord, t + span);
+        const g = level(TRACK_LEVELS.open.chord, TRACK_LEVELS.ducked.chord, t + span) * bodyShare;
         [...chord].forEach((d, i) => push(t, hz(d, 1), 'triangle', g, (i - (chord.length - 1) / 2) * 0.25, { voice: 'pad', filterHz: 900, span, ...room }));
       }
       if (spec.bed) {
@@ -334,6 +436,68 @@ export function trackNotes(spec: TrackSpec, w: TrackWindow): OutputCommand[] {
         far(t + slot * 2, top * 0.84, slot * 2.6, { voice: 'owl', filterHz: 800 });
       } else if (roll < 0.24) {
         far(t, 0, slot * 3, { voice: 'creak', noise: true, filterHz: 500, filterTo: 1400 });
+      }
+    }
+
+    // The doom layer of a boss. Every part is silent under a cue (its ducked share is nil), so none of it
+    // sits on a countdown, and every part is a note on the grid, so no press moves.
+    const doom = spec.doom;
+    if (doom) {
+      const heavy = w.phase === 1 ? 1.35 : 1;
+      const sw = swell(bar, doom.swellBars);
+      if (s === 0) {
+        const span = TRACK_SLOTS * slot * 1.25;
+        // The sub drone swells slowly over `swellBars` bars. A note an octave up carries it on small speakers.
+        const drone = level(TRACK_LEVELS.open.doomDrone, TRACK_LEVELS.ducked.doomDrone, t + span) * (0.45 + 0.55 * sw) * heavy;
+        push(t, doom.droneHz, 'sine', drone, 0, { voice: 'sub', filterHz: 160, span });
+        push(t, doom.droneHz * 2, 'sine', drone * 0.45, 0, { voice: 'sub', filterHz: 240, span });
+        // The low pad: detuned saws or pipes, through a low-pass that closes over the bar.
+        const padGain = level(TRACK_LEVELS.open.doomPad, TRACK_LEVELS.ducked.doomPad, t + span) * (0.5 + 0.5 * sw) * heavy;
+        doom.pad.notes.forEach((n, i) =>
+          push(t, doom.pad.hz * 2 ** (n / 12), 'triangle', padGain, (i % 2 === 0 ? -1 : 1) * 0.3, { voice: doom.pad.voice, filterHz: 950, filterTo: 170, span, ...room }),
+        );
+        // The cluster creeps in as the swell rises: a few voices a semitone or a tritone apart. Phase 2 opens it wider.
+        const creep = Math.min(1, Math.max(0, (sw - 0.25) / 0.75));
+        const cluster = level(TRACK_LEVELS.open.doomCluster, TRACK_LEVELS.ducked.doomCluster, t + span) * creep * heavy;
+        const voices = w.phase === 1 ? [...doom.cluster.notes, ...doom.cluster.open] : doom.cluster.notes;
+        voices.forEach((n, i) => push(t, doom.cluster.hz * 2 ** (n / 12), 'sine', cluster, ((i % 3) - 1) * 0.35, { voice: 'choir', span, wobbleHz: 3.2, wobble: 0.012, ...room }));
+      }
+      // War drums on the downbeats, slow; more of them in phase 2.
+      const drumHit = pick(w.phase === 1 ? doom.drum.phase2 : doom.drum.bars, bar)[s]!;
+      if (drumHit !== '.') {
+        const span = slot * (doom.drum.voice === 'timpani' ? 4 : 2);
+        push(t, doom.drum.hz, 'sine', level(TRACK_LEVELS.open.doomDrum, TRACK_LEVELS.ducked.doomDrum, t + span) * (drumHit === 'X' ? 1 : 0.7) * heavy, 0, {
+          voice: doom.drum.voice,
+          hzTo: doom.drum.hz * 0.72,
+          filterHz: doom.drum.voice === 'timpani' ? 420 : 900,
+          span,
+          ...room,
+        });
+      }
+      // A low toll every few bars (twice as often in phase 2). The gong swells in, the bell strikes.
+      const every = w.phase === 1 ? Math.max(1, Math.ceil(doom.bell.every / 2)) : doom.bell.every;
+      const impact = w.phase === 1 && w.phaseBar === 1 && s === 0;
+      if ((s === doom.bell.slot && bar % every === 0 && bar > 0) || impact) {
+        const span = slot * 9;
+        push(t, doom.bell.hz, 'sine', level(TRACK_LEVELS.open.doomBell, TRACK_LEVELS.ducked.doomBell, t + span) * heavy * (impact ? 1.3 : 1), 0, {
+          voice: doom.bell.voice,
+          filterHz: 1300,
+          span,
+          echo: 0.4,
+          echoSeconds: 2.8,
+        });
+      }
+      // A riser into phase 2: the first bar after the boss is halved is four climbing sweeps of noise.
+      if (w.phase === 1 && w.phaseBar === 0 && s % 2 === 0) {
+        const seg = s / 2;
+        const span = slot * 2;
+        push(t, 0, 'sine', level(TRACK_LEVELS.open.doomRiser, TRACK_LEVELS.ducked.doomRiser, t + span) * (0.4 + 0.2 * seg), 0, {
+          noise: true,
+          voice: 'riser',
+          filterHz: 180 * 2 ** (seg * 1.1),
+          filterTo: 180 * 2 ** ((seg + 1) * 1.1),
+          span,
+        });
       }
     }
 

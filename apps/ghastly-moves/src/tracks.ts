@@ -1,4 +1,4 @@
-import type { TrackSpec } from '@marrow/skeleton';
+import type { DoomSpec, TrackSpec } from '@marrow/skeleton';
 import { BONE_WARDEN_TRACK, CRYPT_TRACK } from './music/crypt';
 import { MOSS_WITCH_TRACK, WOODS_TRACK } from './music/woods';
 import { GATEKEEPER_TRACK, GATE_TRACK } from './music/gate';
@@ -86,8 +86,98 @@ const PUMPKIN_KING: TrackSpec = {
   phase2: { lift: 3, kick: ['X.xxX.xx'], snare: ['..X.x.X.'], hat: ['xxxxxxxx'] },
 };
 
-/** A boss's version of a tune: a little lower, a driving bass and drums. */
+/**
+ * The doom layer of each boss: the stage theme stays as it is, and under it a darker layer builds. Every
+ * boss differs from every other in its pad instrument, its drum, its toll, the interval of its cluster and
+ * the rhythm of its drums (a test checks that any two differ in at least two of these).
+ *
+ * All pitches are low (the drone from 35 to 55 Hz, nothing above the 264 Hz ceiling), and the whole layer
+ * is silent under a countdown cue, so it never sits on the beeps.
+ */
+export const DOOM: Readonly<Record<string, DoomSpec>> = {
+  // The Pumpkin King: brass over a slow timpani every second bar, a grinding minor second, a bell.
+  'The Pumpkin King': {
+    droneHz: 55,
+    swellBars: 12,
+    pad: { voice: 'brass', hz: 55, notes: [0, 7] },
+    drum: { voice: 'timpani', hz: 73, bars: ['X.......', '........'], phase2: ['X...x...', 'X.....x.'] },
+    cluster: { hz: 110, notes: [0, 1], open: [7, 8] },
+    bell: { voice: 'bell', hz: 98, every: 4, slot: 4 },
+  },
+  // The Bone Warden: pipe organ, a taiko on the first and fifth slot of every bar, a tritone, a gong.
+  'The Bone Warden': {
+    droneHz: 49,
+    swellBars: 16,
+    pad: { voice: 'organ', hz: 49, notes: [0, 6] },
+    drum: { voice: 'taiko', hz: 98, bars: ['X...x...'], phase2: ['X.x.X.x.', 'X.x.X.xx'] },
+    cluster: { hz: 98, notes: [0, 6], open: [12] },
+    bell: { voice: 'gong', hz: 65, every: 3, slot: 2 },
+  },
+  // The Moss Witch: brass, a late timpani on the third slot, a major seventh that leans on its octave, a gong.
+  'The Moss Witch': {
+    droneHz: 43.65,
+    swellBars: 10,
+    pad: { voice: 'brass', hz: 58.27, notes: [0, 3] },
+    drum: { voice: 'timpani', hz: 87, bars: ['..X.....'], phase2: ['..X...x.', '..X.x.X.'] },
+    cluster: { hz: 117, notes: [0, 11], open: [12] },
+    bell: { voice: 'gong', hz: 78, every: 5, slot: 6 },
+  },
+  // The Gatekeeper: organ, a marching taiko, a tritone stacked on a fifth, a bell.
+  'The Gatekeeper': {
+    droneHz: 36.7,
+    swellBars: 8,
+    pad: { voice: 'organ', hz: 73.4, notes: [0, 7] },
+    drum: { voice: 'taiko', hz: 110, bars: ['X.x.X...'], phase2: ['X.x.X.x.', 'X.x.XxXx'] },
+    cluster: { hz: 98, notes: [0, 6, 7], open: [13] },
+    bell: { voice: 'bell', hz: 82, every: 2, slot: 0 },
+  },
+  // The Spider Miller: brass, a quick timpani pair on the downbeat, a minor ninth, a bell on the offbeat.
+  'The Spider Miller': {
+    droneHz: 38.9,
+    swellBars: 14,
+    pad: { voice: 'brass', hz: 77.8, notes: [0, 6] },
+    drum: { voice: 'timpani', hz: 92, bars: ['Xx......', '........'], phase2: ['XxXx....', 'Xx..Xx..'] },
+    cluster: { hz: 92, notes: [0, 13], open: [6] },
+    bell: { voice: 'bell', hz: 69, every: 6, slot: 5 },
+  },
+  // The Hollow Wraith: organ, a single deep taiko late in the bar, a stacked tritone and octave, a gong.
+  'The Hollow Wraith': {
+    droneHz: 43.65,
+    swellBars: 20,
+    pad: { voice: 'organ', hz: 43.65, notes: [0, 5] },
+    drum: { voice: 'taiko', hz: 87, bars: ['....X...', '........'], phase2: ['....X.x.', 'x...X...'] },
+    cluster: { hz: 87, notes: [0, 6, 12], open: [13, 18] },
+    bell: { voice: 'gong', hz: 58, every: 8, slot: 3 },
+  },
+  // Count Vexar: brass, a timpani on the third slot of a waltz bar, a three-note chromatic cluster, a bell.
+  'Count Vexar': {
+    droneHz: 41.2,
+    swellBars: 18,
+    pad: { voice: 'brass', hz: 82.4, notes: [0, 3, 6] },
+    drum: { voice: 'timpani', hz: 110, bars: ['x..X..x.'], phase2: ['X..X..X.', 'X.xX..XX'] },
+    cluster: { hz: 110, notes: [0, 1, 2], open: [12, 13] },
+    bell: { voice: 'bell', hz: 117, every: 7, slot: 1 },
+  },
+};
+
+const bossCache = new Map<TrackSpec, TrackSpec>();
+
+/** A boss's version of a tune: a little lower, a driving bass and drums, and the boss's doom layer. */
 export function bossTrack(spec: TrackSpec): TrackSpec {
+  const known = bossCache.get(spec);
+  if (known) return known;
+  const made = withDoom(bossTrackWithoutDoom(spec));
+  bossCache.set(spec, made);
+  return made;
+}
+
+function withDoom(track: TrackSpec): TrackSpec {
+  const name = Object.keys(DOOM).find((n) => track.name.startsWith(n));
+  const doom = name ? DOOM[name] : undefined;
+  return doom ? { ...track, doom } : track;
+}
+
+function bossTrackWithoutDoom(spec: TrackSpec): TrackSpec {
   if (spec === TRACKS[0]) return PUMPKIN_KING;
   if (spec === CRYPT_TRACK) return BONE_WARDEN_TRACK;
   if (spec === WOODS_TRACK) return MOSS_WITCH_TRACK;

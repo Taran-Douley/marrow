@@ -9,7 +9,7 @@ export { createSessionLog } from './log';
 export { EVENT_TYPES } from './channels';
 export { themeFor, contrastRatio } from './theme';
 export { mergeProfile } from './profile';
-export { createScanner, scanningAudible, speechMs, dwellFor } from './scanning';
+export { createScanner, scanningAudible, setClipDurations, speechMs, dwellFor } from './scanning';
 export {
   NARRATOR,
   SIGNATURE_GAP_MS,
@@ -90,7 +90,7 @@ export type { Lesson } from './lesson';
 export type { AudioOptions } from './channels';
 export { cuesAudible, eventsReachTwoSenses, trackClearOfCues, linesInScript, noHoldOrChord, noUnsafeFlashing, repairsKeepTheLevel, themesHaveContrast } from './proof';
 export { validateTrack, trackCeilingHz, trackNotes, TRACK_SHARE, TRACK_LEVELS } from './channels';
-export type { TrackSpec } from './channels';
+export type { DoomSpec, TrackSpec } from './channels';
 export type { Acoustics, SoundRecipe } from './channels/audio';
 export { withAcoustics } from './channels/audio';
 export { coachInTime } from './proof';

@@ -47,7 +47,26 @@ export type Wave = 'sine' | 'triangle' | 'square';
  * Instruments the web player can synthesise (no sample files): a plucked string, soft keys, a warm
  * pad, a sub bass, drums (kick, brushed snare, soft hat, shaker), a faint choir, and two far-off sounds.
  */
-export type Instrument = 'pluck' | 'keys' | 'pad' | 'sub' | 'kick' | 'snare' | 'hat' | 'shaker' | 'choir' | 'owl' | 'creak';
+export type Instrument =
+  | 'pluck'
+  | 'keys'
+  | 'pad'
+  | 'sub'
+  | 'kick'
+  | 'snare'
+  | 'hat'
+  | 'shaker'
+  | 'choir'
+  | 'owl'
+  | 'creak'
+  // The doom layer of a boss track: war drums, a low brass or organ pad, a bell or gong toll, and a riser.
+  | 'timpani'
+  | 'taiko'
+  | 'brass'
+  | 'organ'
+  | 'bell'
+  | 'gong'
+  | 'riser';
 
 /** Optional shaping for a sound. Without it, a sound is a short plain beep. */
 export interface SoundShape {

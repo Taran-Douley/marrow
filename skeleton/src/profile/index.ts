@@ -20,7 +20,7 @@ export function defaultProfile(): Profile {
     textScale: 1,
     palette: 'default',
     reducedMotion: false,
-    volume: { cues: 1, speech: 1, music: 0.6 },
+    volume: { cues: 1, speech: 1, music: 0.85 },
     mono: false,
     voice: true,
     channels: { sound: true, speech: true, captions: true, indicator: true, haptics: true },

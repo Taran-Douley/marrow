@@ -177,6 +177,7 @@ export const PROFILE_SETTINGS: readonly ProfileSetting[] = [
     name: 'Music',
     choices: [
       { label: 'Full', patch: { volume: { music: 1 } }, is: (p: Profile) => near(p.volume.music, 1) },
+      { label: 'Normal', patch: { volume: { music: 0.85 } }, is: (p: Profile) => near(p.volume.music, 0.85) },
       { label: 'Quiet', patch: { volume: { music: 0.6 } }, is: (p: Profile) => near(p.volume.music, 0.6) },
       { label: 'Off', patch: { volume: { music: 0 } }, is: (p: Profile) => near(p.volume.music, 0) },
     ],

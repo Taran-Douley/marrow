@@ -457,7 +457,7 @@ function stripUndefinedAudio(options: AudioOptions): AudioOptions {
 
 export { BAR_SECONDS, BED_SHARE, DEFAULT_AUDIO } from './audio';
 export { TRACK_LEVELS, TRACK_SHARE, trackCeilingHz, trackNotes, validateTrack } from './track';
-export type { TrackSpec } from './track';
+export type { DoomSpec, TrackSpec } from './track';
 export type { AudioOptions } from './audio';
 
 /** Render one event through every channel the profile has turned on. */

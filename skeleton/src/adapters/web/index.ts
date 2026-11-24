@@ -29,6 +29,8 @@ export type { Game, GameOptions } from './game';
 export { fingerprint, registerOffline, serviceWorkerSource } from './offline';
 export type { ServiceWorkerOptions } from './offline';
 export { chooseVoice, clipsBySlug, createSpeaker, regionFromElement, slugOf } from './speech';
+export { NARRATOR_BROWSER_VOICES, createVoiceClips, parseManifest } from './voice-manifest';
+export type { ManifestClip, VoiceClips, VoiceManifest } from './voice-manifest';
 export type { BrowserVoiceOptions, ClipHandle, Clips, PlayClip, SayHow, SpeakerOptions, VoiceInfo, VoiceProvider } from './speech';
 export { createProfileStore } from './storage';
 export { bindInput, createGamepadPoller, isControl } from './input';

@@ -29,7 +29,7 @@ import {
   type Walk,
   type WalkSnapshot,
 } from '@marrow/skeleton';
-import { clipsBySlug, createWebAdapter, drawMenu, registerOffline } from '@marrow/skeleton/web';
+import { NARRATOR_BROWSER_VOICES, clipsBySlug, createVoiceClips, createWebAdapter, drawMenu, registerOffline } from '@marrow/skeleton/web';
 import { MABEL, PASSAGE, RELICS, ROOM_EVENT_STYLES, SEARCH_LINES, WARDROBE, WHISPERS, nameRooms, sideWord, type Floor, type RoomInfo, type RoomKind } from './content';
 import { CLOSE_RANGE, heartRate, heartWords } from './dread';
 import { GUIDE, type GuideItem } from './guide';
@@ -105,16 +105,19 @@ const fright = (): Fright => ((FRIGHTS as readonly string[]).includes(frightSele
 let kit: Kit = createSeanceKit({ fright: fright() });
 let chaseKit: Kit = createSeanceKit({ fright: fright(), chase: true });
 
-const browserVoice: { names: string[] } = { names: [] };
+// The narrator's recorded voice is a young British woman, so the browser voice that covers the lines with no
+// recording is the closest British English female voice the browser has.
+const browserVoice: { names: string[]; lang: string } = { names: [...NARRATOR_BROWSER_VOICES], lang: 'en-GB' };
 const savedVoice = saved(VOICE_KEY);
 if (savedVoice) browserVoice.names = [savedVoice];
-// Optional recordings: open the page with ?clips=voice/ to play voice/<line-name>.mp3 for each line.
-// Lines with no file fall back to the browser voice. See docs/voices.md.
+// Recordings: voice/manifest.json (made by `npm run voice`) is loaded if it exists; a line with no clip falls
+// back to the browser voice. Opening the page with ?clips=voice/ also finds clips by line name. See docs/voices.md.
 const clipBase = new URLSearchParams(location.search).get('clips');
+const voiceClips = createVoiceClips({ ...(clipBase ? { fallback: clipsBySlug(clipBase) } : {}) });
 const adapter = createWebAdapter({
   region: element('announcements'),
   // Story lines are long: each one finishes before the next begins, so nothing is cut off.
-  voice: { browser: browserVoice, queue: true, ...(clipBase ? { clips: clipsBySlug(clipBase) } : {}) },
+  voice: { browser: browserVoice, queue: true, clips: (text) => voiceClips.lookup(text) },
 });
 
 let profile: Profile = adapter.withOsPreferences(adapter.loadProfile() ?? kit.newProfile());
@@ -911,4 +914,5 @@ announce('menu', undefined, false);
 requestAnimationFrame(frame);
 
 // Keep the built game in the browser, so it works with no network after the first visit.
+void voiceClips.load(); // recordings, if voice/manifest.json exists
 if (import.meta.env.PROD) void registerOffline();

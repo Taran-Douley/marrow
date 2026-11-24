@@ -58,8 +58,19 @@ export interface ConvolverLike {
   connect(node: unknown): unknown;
 }
 
+/** A compressor (the browser's DynamicsCompressorNode), used as a limiter on the music bus. */
+export interface CompressorLike {
+  threshold: AudioParamLike;
+  knee?: AudioParamLike;
+  ratio: AudioParamLike;
+  attack?: AudioParamLike;
+  release?: AudioParamLike;
+  connect(node: unknown): unknown;
+}
+
 export interface AudioContextLike {
   currentTime: number;
+  createDynamicsCompressor?(): CompressorLike;
   createConvolver?(): ConvolverLike;
   destination: unknown;
   sampleRate?: number;
@@ -102,7 +113,7 @@ export interface SoundPlayer {
    * are not touched. `false` lets it open up again over about a second.
    */
   muffle(on: boolean): void;
-  /** Duck the music under speech: it drops to a third while `on`, and comes back over a moment. */
+  /** Duck the music under speech: it drops by 6 dB (to half) while `on`, and comes back over a moment. */
   duck(on: boolean): void;
 }
 
@@ -112,6 +123,11 @@ const RANK: Partial<Record<string, number>> = { ambience: 0, music: 1, effect: 2
 interface Stoppable {
   stop(when?: number): void;
 }
+
+/** The music bus gain (was 1): the music is plainly heard. A limiter on the bus keeps the peaks clean. */
+export const MUSIC_BUS_GAIN = 1.6;
+/** Under speech the music drops to half (6 dB), not to a third as before, and comes back in 0.4 s. */
+export const MUSIC_DUCK = 0.5;
 
 /** Long sounds (wind, pad, the approach tone) fade in and out so they never click or pump. */
 const LONG_SECONDS = 0.6;
@@ -156,9 +172,21 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
     musicFilter = ctx.createBiquadFilter();
     musicFilter.type = 'lowpass';
     musicFilter.frequency.value = muffled ? MUFFLED_HZ : OPEN_HZ;
-    musicIn.gain.value = ducked ? 0.33 : 1;
+    musicIn.gain.value = (ducked ? MUSIC_DUCK : 1) * MUSIC_BUS_GAIN;
     musicIn.connect(musicFilter);
-    musicFilter.connect(ctx.destination);
+    // The bus is louder than the notes alone, so a limiter catches the peaks where many layers land together.
+    if (ctx.createDynamicsCompressor) {
+      const limit = ctx.createDynamicsCompressor();
+      limit.threshold.value = -10;
+      limit.ratio.value = 6;
+      if (limit.knee) limit.knee.value = 12;
+      if (limit.attack) limit.attack.value = 0.005;
+      if (limit.release) limit.release.value = 0.25;
+      musicFilter.connect(limit);
+      limit.connect(ctx.destination);
+    } else {
+      musicFilter.connect(ctx.destination);
+    }
     return musicIn;
   };
   const toDestination = (role: string): unknown => (role === 'music' ? musicBus() : ctx.destination);
@@ -294,7 +322,7 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
   const instrument = (cmd: SoundCommand, kind: Instrument, hz: number, gain: number, start: number, seconds: number, pan: number, mono: boolean): boolean => {
     const shape = cmd.shape ?? {};
     if (!ctx.createBiquadFilter || !ctx.createGain) return false;
-    const noisy = kind === 'snare' || kind === 'hat' || kind === 'shaker' || kind === 'creak';
+    const noisy = kind === 'snare' || kind === 'hat' || kind === 'shaker' || kind === 'creak' || kind === 'riser';
     if (noisy && !(ctx.createBufferSource && noiseBuffer())) return false;
     const pluckSamples = kind === 'pluck' ? pluckBuffer(hz) : undefined;
     if (kind === 'pluck' && !pluckSamples) return false;
@@ -458,6 +486,92 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
         run(n, start, end);
         break;
       }
+      case 'timpani':
+      case 'taiko': {
+        // A war drum: a sine that falls onto its pitch, a soft thump of low noise, and a long decay (timpani) or a short punch (taiko).
+        const big = kind === 'timpani';
+        const body = ctx.createGain();
+        body.gain.value = 1;
+        const o = osc('sine', hz * (big ? 1.4 : 2), 1, body);
+        o.frequency.setValueAtTime?.(hz * (big ? 1.4 : 2), start);
+        o.frequency.linearRampToValueAtTime?.(hzTo ?? hz, start + (big ? 0.14 : 0.06));
+        osc('triangle', hz * 0.5, 0.5, body);
+        if (ctx.createBufferSource && noiseBuffer()) {
+          const n = noise();
+          const thump = filter('lowpass', big ? 220 : 500);
+          const level = ctx.createGain();
+          level.gain.value = big ? 0.35 : 0.5;
+          n.connect(thump);
+          thump.connect(level);
+          level.connect(body);
+          run(n, start, Math.min(end, start + 0.12));
+        }
+        const tone = filter('lowpass', shape.filterHz ?? 500);
+        body.connect(tone);
+        tone.connect(amp);
+        envelope(0.003, big ? 0.4 : 0.18, big ? seconds * 0.45 : 0.08);
+        break;
+      }
+      case 'brass': {
+        // Low brass-like pad: detuned saws and a square an octave down, through a low-pass that closes, with a slow swell in.
+        const mix = ctx.createGain();
+        mix.gain.value = 0.3;
+        [0.99, 1, 1.012].forEach((d) => osc('sawtooth', hz * d, 1, mix));
+        osc('square', hz * 0.5, 0.45, mix);
+        const tone = filter('lowpass', shape.filterHz ?? 900, shape.filterTo ?? 170, 1.1);
+        mix.connect(tone);
+        tone.connect(amp);
+        const a = Math.min(0.9, seconds * 0.45);
+        amp.gain.setValueAtTime?.(0, start);
+        amp.gain.linearRampToValueAtTime?.(peak, start + a);
+        amp.gain.setValueAtTime?.(peak, end - Math.min(0.5, seconds * 0.25));
+        amp.gain.linearRampToValueAtTime?.(0, end);
+        break;
+      }
+      case 'organ': {
+        // A low pipe organ: the note, its octave and its twelfth, with a square for the reed. Steady, with a slow swell.
+        const mix = ctx.createGain();
+        mix.gain.value = 0.4;
+        osc('sine', hz, 1, mix);
+        osc('square', hz, 0.3, mix);
+        osc('sine', hz * 2, 0.5, mix);
+        osc('sine', hz * 3, 0.25, mix);
+        const tone = filter('lowpass', shape.filterHz ?? 700, shape.filterTo, 0.8);
+        mix.connect(tone);
+        tone.connect(amp);
+        const a = Math.min(0.7, seconds * 0.4);
+        amp.gain.setValueAtTime?.(0, start);
+        amp.gain.linearRampToValueAtTime?.(peak, start + a);
+        amp.gain.setValueAtTime?.(peak, end - Math.min(0.5, seconds * 0.25));
+        amp.gain.linearRampToValueAtTime?.(0, end);
+        break;
+      }
+      case 'bell':
+      case 'gong': {
+        // A low toll: partials that do not sit on whole multiples, so it rings like metal. The gong swells in, the bell strikes.
+        const ratios = kind === 'bell' ? [1, 2, 2.4, 3, 4.2] : [1, 1.47, 2.09, 2.56, 3.4];
+        const shares = kind === 'bell' ? [1, 0.5, 0.35, 0.22, 0.1] : [1, 0.7, 0.5, 0.3, 0.15];
+        const mix = ctx.createGain();
+        mix.gain.value = 0.4;
+        ratios.forEach((r, i) => osc('sine', hz * r, shares[i]!, mix));
+        const tone = filter('lowpass', shape.filterHz ?? 1300);
+        mix.connect(tone);
+        tone.connect(amp);
+        envelope(kind === 'bell' ? 0.004 : 0.14, 0.3, seconds * (kind === 'bell' ? 0.35 : 0.5));
+        break;
+      }
+      case 'riser': {
+        // A rising sweep of noise that grows as it climbs.
+        const n = noise();
+        const band = filter('bandpass', shape.filterHz ?? 200, shape.filterTo ?? 2000, 1.6);
+        n.connect(band);
+        band.connect(amp);
+        amp.gain.setValueAtTime?.(0, start);
+        amp.gain.linearRampToValueAtTime?.(peak, end - Math.min(0.03, seconds / 3));
+        amp.gain.linearRampToValueAtTime?.(0, end);
+        run(n, start, end);
+        break;
+      }
       case 'owl': {
         // A far-off hoot: a soft sine that sags a little, behind a low-pass, so it sounds distant.
         const mix = ctx.createGain();
@@ -618,7 +732,7 @@ export function createSoundPlayer(ctx: AudioContextLike, options: SoundOptions =
       if (!g) return;
       const now = ctx.currentTime;
       g.setValueAtTime?.(g.value, now);
-      g.linearRampToValueAtTime?.(on ? 0.33 : 1, now + (on ? 0.06 : 0.4));
+      g.linearRampToValueAtTime?.((on ? MUSIC_DUCK : 1) * MUSIC_BUS_GAIN, now + (on ? 0.06 : 0.4));
     },
     unlock() {
       if (ctx.state === 'suspended') void ctx.resume?.();

@@ -35,7 +35,17 @@ export interface Scanner {
 }
 
 /** A fair guess at how long a line takes to say, in ms. */
-export const speechMs = (label: string): number => 400 + 65 * label.length;
+export const speechMs = (label: string): number => Math.max(400 + 65 * label.length, clipMs.get(label) ?? 0);
+
+/**
+ * The real length, in ms, of each recorded line, by its exact text. A game that plays recordings fills this
+ * when it loads them, so every hold and proof waits for the clip and never for a shorter guess.
+ */
+const clipMs = new Map<string, number>();
+export function setClipDurations(durations: Readonly<Record<string, number>>): void {
+  clipMs.clear();
+  for (const [text, ms] of Object.entries(durations)) if (Number.isFinite(ms) && ms > 0) clipMs.set(text, ms);
+}
 
 /** How long an option stays lit: the player's dwell, or long enough to hear the label and a beat more. */
 export const dwellFor = (option: ScanOption, dwellMs: number): number => Math.max(dwellMs, speechMs(option.label) + 600);

@@ -20,7 +20,7 @@ import {
   type RunSnapshot,
   type SemanticEvent,
 } from '@marrow/skeleton';
-import { clipsBySlug, createWebAdapter, drawMenu, registerOffline } from '@marrow/skeleton/web';
+import { NARRATOR_BROWSER_VOICES, clipsBySlug, createVoiceClips, createWebAdapter, drawMenu, registerOffline } from '@marrow/skeleton/web';
 import { createGhastlyKit } from './kit';
 import { TABLES } from './lessons';
 import { drawMap } from './map';
@@ -126,15 +126,18 @@ const log = createSessionLog();
 
 // Which browser voice speaks. Empty means "pick the most natural one". A game could instead plug in
 // its own AI voice or recordings with `voice: { provider }` or `voice: { clips }`; see docs/voices.md.
-const browserVoice: { names: string[] } = { names: [] };
+// The narrator's recorded voice is a young British woman, so the browser voice that covers the lines with no
+// recording (the numbers) is the closest British English female voice the browser has.
+const browserVoice: { names: string[]; lang: string } = { names: [...NARRATOR_BROWSER_VOICES], lang: 'en-GB' };
 const savedVoice = saved(VOICE_KEY);
 if (savedVoice) browserVoice.names = [savedVoice];
-// Optional recordings: open the page with ?clips=voice/ to play voice/<line-name>.mp3 for each line.
-// Lines with no file fall back to the browser voice. See docs/voices.md.
+// Recordings: voice/manifest.json (made by `npm run voice`) is loaded if it exists; a line with no clip falls
+// back to the browser voice. Opening the page with ?clips=voice/ also finds clips by line name. See docs/voices.md.
 const clipBase = new URLSearchParams(location.search).get('clips');
+const voiceClips = createVoiceClips({ ...(clipBase ? { fallback: clipsBySlug(clipBase) } : {}) });
 const adapter = createWebAdapter({
   region: element('announcements'),
-  voice: { browser: browserVoice, ...(clipBase ? { clips: clipsBySlug(clipBase) } : {}) },
+  voice: { browser: browserVoice, clips: (text) => voiceClips.lookup(text) },
   // The band is several notes at once (string, keys, pad, bass, drums, bed), so it needs more voices than the default.
   sound: { maxVoices: 40 },
 });
@@ -284,8 +287,16 @@ function emit(event: SemanticEvent, now: number): void {
 function withBand(event: SemanticEvent): SemanticEvent {
   if (event.type !== EVENT_TYPES.atmosphere) return event;
   const phase = boss && boss.max > 0 && boss.health * 2 <= boss.max ? 1 : 0;
-  return { ...event, data: { ...event.data, streak: lastSnapshot?.streak ?? 0, phase } };
+  // Bars since phase 2 began, so the boss track can riser into it and strike on the next bar.
+  const bar = typeof event.data?.bar === 'number' ? event.data.bar : 0;
+  if (phase === 0 || (phase2FromBar !== null && bar < phase2FromBar)) phase2FromBar = null;
+  if (phase === 1 && phase2FromBar === null) phase2FromBar = bar;
+  const phaseBar = phase === 1 ? bar - (phase2FromBar ?? bar) : 0;
+  return { ...event, data: { ...event.data, streak: lastSnapshot?.streak ?? 0, phase, phaseBar } };
 }
+
+/** The bar on which the boss first went below half health, or null while it has not. */
+let phase2FromBar: number | null = null;
 
 // ---- the boss fight ----------------------------------------------------------
 
@@ -295,13 +306,37 @@ let bossDown = false;
 /** How long the last hit's collapse is shown before the fight ends: the King falls slowly into his pile. */
 const BOSS_FALL_MS = 2600;
 
+/** Play a boss's recorded grunt after `delayMs`, at the player's speech volume. A file that will not play is simply silent. */
+function playGrunt(url: string, delayMs: number): void {
+  if (profile.volume.speech <= 0) return;
+  const volume = Math.min(1, profile.volume.speech);
+  setTimeout(() => {
+    try {
+      const audio = new Audio(url);
+      audio.volume = volume;
+      void audio.play().catch(() => undefined);
+    } catch {
+      // No audio here: the caption and the picture still tell what happened.
+    }
+  }, delayMs);
+}
+
 /** The boss reacts to the fight: it throws as each projectile comes, groans when hit, laughs at a mistake. */
 function bossReacts(event: SemanticEvent, now: number): void {
   if (!boss || !stage || bossDown) return;
   const realNow = performance.now();
   const say = (type: string, at: number, data?: Record<string, unknown>): void => {
     const e: SemanticEvent = data ? { type, at, data } : { type, at };
-    adapter.perform(kit.render(e, profile), { now, rate: rate() }, profile);
+    let commands = kit.render(e, profile);
+    // A recorded grunt (after a hit) or laugh (after a fall) replaces the synthesised sound at the same moment.
+    // The caption and the rest stay as they are. Both come after a press or a fall, never inside a countdown.
+    const kind = type === 'boss-hurt' ? 'hurt' : type === 'boss-laugh' ? 'laugh' : '';
+    const clip = kind && stage ? voiceClips.grunt(stage.boss.name, kind) : undefined;
+    if (clip) {
+      commands = commands.filter((c) => c.channel !== 'sound');
+      playGrunt(clip, Math.max(0, ((at - now) / rate()) * 1000));
+    }
+    adapter.perform(commands, { now, rate: rate() }, profile);
   };
   if (event.type === EVENT_TYPES.approaching) {
     const at = Math.max(now, event.at - THROW_LEAD);
@@ -777,4 +812,5 @@ announceMenu(false); // written, not spoken: browsers allow speech only after a 
 requestAnimationFrame(frame);
 
 // Keep the built game in the browser, so it works with no network after the first visit.
+void voiceClips.load(); // recordings, if voice/manifest.json exists
 if (import.meta.env.PROD) void registerOffline();

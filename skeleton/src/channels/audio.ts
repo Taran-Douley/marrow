@@ -302,6 +302,7 @@ export function worldSound(
             ...(dataNumber(event, 'energy') !== undefined ? { energy: clamp01(dataNumber(event, 'energy')!) } : {}),
             ...(dataNumber(event, 'streak') !== undefined ? { streak: dataNumber(event, 'streak')! } : {}),
             ...(dataNumber(event, 'phase') !== undefined ? { phase: dataNumber(event, 'phase')! } : {}),
+            ...(dataNumber(event, 'phaseBar') !== undefined ? { phaseBar: dataNumber(event, 'phaseBar')! } : {}),
           }),
         );
       }
