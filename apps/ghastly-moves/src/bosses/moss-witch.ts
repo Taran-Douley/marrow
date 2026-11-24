@@ -27,6 +27,7 @@ const LICHEN = '#6f9a58';
 const ACID = '#a6ff5e';
 const ACID_HOT = '#eaffc4';
 const RIM = '#8fd6b4';
+const MOON = '#a9c8f4';
 const STAFF_X = 114;
 
 const IDLE: BodyPose = {
@@ -393,32 +394,97 @@ function drawHead(c: Ctx, hx: number, hy: number, tilt: number, hatKnock: number
 }
 
 /** What is left: a low mound of moss, a toppled hat, toadstools. `grow` is 0 to 1. */
-function drawMound(c: Ctx, grow: number): void {
+function drawMound(c: Ctx, grow: number, nowMs: number, calm: boolean): void {
   if (grow <= 0) return;
   c.save();
   c.globalAlpha = clamp01(grow * 1.5);
-  for (let i = 0; i < 16; i++) {
-    c.fillStyle = hash(i, 240) < 0.5 ? MOSS_M : MOSS_D;
+  // The slumped mound: a low dome, a little higher on the right (the hump), with a moon-blue rim along its top.
+  const dome = (): void => {
     c.beginPath();
-    c.ellipse(-100 + i * 14 + hash(i, 241) * 8, -10 - hash(i, 242) * 18, 16 + hash(i, 243) * 8, 10, 0, 0, Math.PI * 2);
+    c.moveTo(-142, 4);
+    c.bezierCurveTo(-136, -34, -92, -62, -34, -68);
+    c.bezierCurveTo(30, -74, 96, -64, 134, -36);
+    c.bezierCurveTo(150, -24, 152, -8, 148, 4);
+    c.closePath();
+  };
+  c.save();
+  c.shadowColor = withAlpha(MOON, 0.55);
+  c.shadowBlur = 8;
+  c.fillStyle = MOSS_D;
+  dome();
+  c.fill();
+  c.restore();
+  c.save();
+  dome();
+  c.clip();
+  for (let i = 0; i < 34; i++) {
+    const cx = -136 + hash(i, 241) * 280;
+    const cy = -6 - hash(i, 242) * 58;
+    const r = 11 + hash(i, 243) * 11;
+    const lit = cx > -20 && cy < -26;
+    c.fillStyle = lit && hash(i, 244) > 0.45 ? LICHEN : hash(i, 240) < 0.5 ? MOSS_M : MOSS_D;
+    c.beginPath();
+    c.ellipse(cx, cy, r, r * 0.7, hash(i, 245) - 0.5, 0, Math.PI * 2);
     c.fill();
   }
+  c.restore();
   c.save();
-  c.translate(-92, -22);
-  c.rotate(-1.15);
-  c.scale(0.55, 0.55);
+  c.strokeStyle = withAlpha(MOON, 0.95);
+  c.lineWidth = 3;
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(-132, -26);
+  c.bezierCurveTo(-92, -58, -40, -66, -34, -68);
+  c.bezierCurveTo(30, -74, 96, -64, 134, -36);
+  c.stroke();
+  c.restore();
+  // Hanging moss ropes along the front.
+  c.strokeStyle = MOSS_M;
+  c.lineWidth = 3.2;
+  c.lineCap = 'round';
+  for (let i = 0; i < 9; i++) {
+    const rx = -120 + i * 30 + hash(i, 246) * 10;
+    c.beginPath();
+    c.moveTo(rx, 0);
+    c.quadraticCurveTo(rx + 5, 8, rx - 3, 13 + hash(i, 247) * 5);
+    c.stroke();
+  }
+  // The hat: tumbled off to the right and lying on its side, brim up on the mound, tip drooping to the ground.
+  c.save();
+  c.translate(176, -34);
+  c.rotate(1.28);
+  c.scale(0.6, 0.6);
+  c.shadowColor = withAlpha(MOON, 0.9);
+  c.shadowBlur = 9;
   drawHat(c);
   c.restore();
-  for (const [x, r] of [[40, 9], [66, 12], [88, 8]] as const) {
-    c.fillStyle = '#c8d8b0';
-    c.fillRect(x - 2, -24, 4, 16);
+  // Toadstools on the mound and beside it: pale caps, light stems, a lit rim.
+  for (const [tx, ty, r] of [[-58, -6, 12], [-26, -2, 8], [74, -4, 10], [-142, -2, 9]] as const) {
+    c.fillStyle = '#d3e0bc';
+    c.fillRect(tx - 2.4, ty - 17, 4.8, 17);
     c.fillStyle = LICHEN;
     c.beginPath();
-    c.ellipse(x, -24, r, r * 0.6, 0, Math.PI, 0);
+    c.ellipse(tx, ty - 17, r, r * 0.62, 0, Math.PI, 0);
     c.fill();
-    c.fillStyle = withAlpha(ACID, 0.6 * (1 - grow * 0.5));
+    c.strokeStyle = withAlpha(MOON, 0.9);
+    c.lineWidth = 1.6;
     c.beginPath();
-    c.arc(x, -25, 1.8, 0, Math.PI * 2);
+    c.ellipse(tx, ty - 17, r, r * 0.62, 0, Math.PI * 1.1, Math.PI * 1.85);
+    c.stroke();
+    c.fillStyle = withAlpha(ACID_HOT, 0.8);
+    c.beginPath();
+    c.arc(tx - r * 0.35, ty - 20, 1.6, 0, Math.PI * 2);
+    c.fill();
+  }
+  // Spores drifting up from the mound.
+  for (let i = 0; i < 12; i++) {
+    const drift = calm ? 0 : ((nowMs / 5200 + hash(i, 248)) % 1);
+    const sx = -110 + hash(i, 249) * 230 + (calm ? 0 : Math.sin(nowMs / 900 + i) * 5);
+    const sy = -70 - (calm ? hash(i, 250) * 90 : drift * 100);
+    const fade = calm ? 0.8 : Math.sin(drift * Math.PI);
+    c.fillStyle = withAlpha(i % 3 === 0 ? ACID_HOT : ACID, 0.85 * fade);
+    c.beginPath();
+    c.arc(sx, sy, 2.2 + hash(i, 251) * 1.4, 0, Math.PI * 2);
     c.fill();
   }
   c.restore();
@@ -482,12 +548,19 @@ export function drawMossWitch(ctx: Ctx, x: number, groundY: number, pose: BossPo
   ctx.scale(SCALE, SCALE);
   groundShadow(ctx, 160 + down * 20);
 
-  drawStaff(ctx, body.right.hand[1], glow, 1 - down);
+  // The staff topples to the left when she falls: it ends lying across the front, its orb dimmed but alight.
+  ctx.save();
+  ctx.translate(STAFF_X, 0);
+  ctx.rotate(-down * 1.33);
+  ctx.translate(-STAFF_X, 0);
+  drawStaff(ctx, body.right.hand[1], lerp(glow, 0.3, down), 1);
+  ctx.restore();
 
   ctx.save();
-  ctx.translate(0, crouch * 0.4 + down * 130);
+  ctx.translate(0, crouch * 0.4 + down * 30);
   ctx.scale(1 + down * 0.3, lerp(1 - crouch / 330, 0.28, down));
-  drawBody(ctx, shake, 0);
+  ctx.globalAlpha = clamp01(1 - down * 1.6);
+  if (ctx.globalAlpha > 0) drawBody(ctx, shake, 0);
   ctx.restore();
 
   const droop = down * 90;
@@ -506,7 +579,7 @@ export function drawMossWitch(ctx: Ctx, x: number, groundY: number, pose: BossPo
   const held = heldItem(pose);
   if (held && down === 0) drawHeld(ctx, held, lh, glow);
 
-  drawMound(ctx, down);
+  drawMound(ctx, down, t, calm);
 
   // When hit, clumps of moss are shaken loose and fall.
   if (pose.hurt > 0.02) {
