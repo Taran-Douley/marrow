@@ -20,6 +20,8 @@ import { bodyPoseFor, groundShadow, heldItem, limb, type BodyPose, type Pt, type
 // heaves or flickers.
 
 const SCALE = 0.72;
+/** The helm's size against the body. At 1 it looked small on the huge pauldrons. */
+const HELM_SIZE = 1.35;
 const IRON = '#0b0c1a';
 const STEEL_D = '#1c1f36';
 const STEEL = '#2c3050';
@@ -613,6 +615,8 @@ export function drawGatekeeper(ctx: Ctx, x: number, groundY: number, pose: BossP
   ctx.save();
   ctx.translate(hx, hy);
   ctx.rotate(tilt);
+  // Bigger than drawn, so it holds its own on the wide body. Scaled about its base, so it still sits in the gorget.
+  ctx.scale(HELM_SIZE, HELM_SIZE);
   ctx.translate(0, -14);
   helm(ctx, pose, glow, pose.hurt > 0.2 ? 0 : pose.laughing > 0.1 ? 1 : 0.55);
   ctx.restore();
